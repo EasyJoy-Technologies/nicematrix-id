@@ -1,0 +1,31 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nicematrix-id-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  logto:
+    image: svhd/logto:latest
+    container_name: nicematrix-logto
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    environment:
+      DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
+      ENDPOINT: ${LOGTO_ENDPOINT}
+      ADMIN_DISABLE_LOCALHOST: ${LOGTO_ADMIN_DISABLE_LOCALHOST}
+      COOKIE_SECRET: ${LOGTO_COOKIE_SECRET}
+      PORT: ${LOGTO_PORT}
+    ports:
+      - "3001:${LOGTO_PORT}"
+
+volumes:
+  pg_data:
