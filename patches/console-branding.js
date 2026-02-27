@@ -119,6 +119,20 @@ if (!fs.existsSync(assetsDir)) {
       console.log(`  [SKIP] ${bundle}: resource indicator already patched`);
     }
 
+    // Fix Management API token: R8 hook uses getOrganizationToken("t-default") which gives
+    // aud=urn:logto:organization:t-default — wrong audience for management API.
+    // Patch R8 to use getAccessToken("https://admin.logto.app/api") instead.
+    const r8old = '{isAuthenticated:o,getOrganizationToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:s,tenantId:r,language:i.language}),[r,s,t,o,i.language])';
+    const r8new = '{isAuthenticated:o,getAccessToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:()=>s("https://admin.logto.app/api"),tenantId:r,language:i.language}),[r,s,t,o,i.language])';
+    if (content.includes(r8old)) {
+      content = content.replace(r8old, r8new);
+      console.log(`  [OK] ${bundle}: patched R8 to use getAccessToken for management API`);
+    } else if (!content.includes('getAccessToken:s}=q()')) {
+      errors.push(`NO_MATCH_R8: R8 hook pattern not found in ${bundle}`);
+    } else {
+      console.log(`  [SKIP] ${bundle}: R8 hook already patched`);
+    }
+
     fs.writeFileSync(fullPath, content, 'utf8');
     console.log(`  [OK] ${bundle}`);
     totalPatched++;
