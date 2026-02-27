@@ -114,6 +114,18 @@ if (!fs.existsSync(assetsDir)) {
       console.log(`  [SKIP] ${bundle}: welcome logo already patched`);
     }
 
+    // Fix Management API resource indicator: pl(U1) → pl(J4) (default → admin tenant)
+    // Required because ADMIN_ENDPOINT == ENDPOINT routes all requests to admin tenant
+    // which validates JWT audience as https://admin.logto.app/api
+    if (content.includes('[pl(U1).indicator,he.indicator]')) {
+      content = content.replace('[pl(U1).indicator,he.indicator]', '[pl(J4).indicator,he.indicator]');
+      console.log(`  [OK] ${bundle}: fixed Management API resource indicator (U1→J4)`);
+    } else if (!content.includes('[pl(J4).indicator,he.indicator]')) {
+      errors.push(`NO_MATCH_RESOURCE: management API resource indicator not found in ${bundle}`);
+    } else {
+      console.log(`  [SKIP] ${bundle}: resource indicator already patched`);
+    }
+
     fs.writeFileSync(fullPath, content, 'utf8');
     console.log(`  [OK] ${bundle}`);
     totalPatched++;
