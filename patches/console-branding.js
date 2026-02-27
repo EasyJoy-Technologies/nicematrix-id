@@ -92,7 +92,7 @@ if (!fs.existsSync(assetsDir)) {
     const j8Start = content.indexOf('J8=t=>n.createElement("svg"');
     const rCIdx = content.indexOf('rC="__cDzoA__topbar"');
     if (j8Start !== -1 && rCIdx !== -1 && rCIdx > j8Start) {
-      const newJ8 = `J8=t=>n.createElement("img",{src:"${NICEMATRIX_BANNER_SVG}",height:48,alt:"NiceMatrix",...t}),`;
+      const newJ8 = `J8=t=>n.createElement("img",{src:"https://m.nicematrix.com/branding/NiceMatrix-170x64-.svg",height:64,alt:"NiceMatrix",...t}),`;
       content = content.substring(0, j8Start) + newJ8 + content.substring(rCIdx);
       console.log(`  [OK] ${bundle}: topbar SVG logo (J8) replaced`);
     } else if (!content.includes('J8=t=>n.createElement("img"')) {
