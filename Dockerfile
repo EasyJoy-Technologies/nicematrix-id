@@ -7,4 +7,6 @@ FROM svhd/logto:1.36.0
 
 # Copy and apply patches
 COPY patches/ /tmp/patches/
-RUN node /tmp/patches/username-regex.js && rm -rf /tmp/patches/
+RUN node /tmp/patches/username-regex.js && \
+    node /tmp/patches/console-branding.js && \
+    rm -rf /tmp/patches/
