@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,7 +11,8 @@ services:
       - pg_data:/var/lib/postgresql/data
 
   logto:
-    image: svhd/logto:latest
+    build: .
+    image: nicematrix-logto:latest
     container_name: nicematrix-logto
     depends_on:
       - postgres
@@ -21,9 +20,12 @@ services:
     environment:
       DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}
       ENDPOINT: ${LOGTO_ENDPOINT}
+      ADMIN_ENDPOINT: ${LOGTO_ENDPOINT}
       ADMIN_DISABLE_LOCALHOST: ${LOGTO_ADMIN_DISABLE_LOCALHOST}
       COOKIE_SECRET: ${LOGTO_COOKIE_SECRET}
       PORT: ${LOGTO_PORT}
+      TRUST_PROXY_HEADER: "true"
+      NODE_ENV: production
     ports:
       - "3001:${LOGTO_PORT}"
 
