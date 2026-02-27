@@ -131,3 +131,31 @@ if (errors.length > 0) {
 }
 
 console.log(`All console branding patches applied successfully.\n`);
+
+// --- Recompress all patched bundle files ---
+recompressDir(assetsDir);
+
+function recompressDir(dir) {
+  if (!dir || !fs.existsSync(dir)) return;
+  const { execSync } = require('child_process');
+  const files = fs.readdirSync(dir).filter(f =>
+    f.startsWith('index-') && f.endsWith('.js') && !f.endsWith('.js.map')
+  );
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    try {
+      execSync(`gzip -9 -c "${fullPath}" > "${fullPath}.gz"`, { shell: true });
+      console.log(`  [GZ] ${file}.gz regenerated`);
+    } catch (e) {
+      console.warn(`  [WARN] gzip failed for ${file}: ${e.message}`);
+    }
+    if (fs.existsSync(`${fullPath}.br`)) {
+      try {
+        execSync(`brotli -9 -c "${fullPath}" > "${fullPath}.br"`, { shell: true });
+        console.log(`  [BR] ${file}.br regenerated`);
+      } catch (e) {
+        console.warn(`  [WARN] brotli failed for ${file}: ${e.message}`);
+      }
+    }
+  }
+}

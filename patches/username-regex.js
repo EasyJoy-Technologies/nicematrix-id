@@ -121,7 +121,38 @@ if (errors.length > 0) {
 
 console.log(`All patches applied successfully.\n`);
 
+// --- Recompress patched bundle files ---
+recompressBundles();
+
 // --- Helper ---
+
+function recompressBundles() {
+  const { execSync } = require('child_process');
+  const allBundleDirs = bundleDirs.map(({ dir }) => path.join(BASE, dir));
+  for (const dirPath of allBundleDirs) {
+    if (!fs.existsSync(dirPath)) continue;
+    const files = fs.readdirSync(dirPath).filter(f =>
+      f.startsWith('index-') && f.endsWith('.js') && !f.endsWith('.js.map')
+    );
+    for (const file of files) {
+      const fullPath = path.join(dirPath, file);
+      try {
+        execSync(`gzip -9 -c "${fullPath}" > "${fullPath}.gz"`, { shell: true });
+        console.log(`  [GZ] ${file}.gz regenerated`);
+      } catch (e) {
+        console.warn(`  [WARN] gzip failed for ${file}: ${e.message}`);
+      }
+      if (fs.existsSync(`${fullPath}.br`)) {
+        try {
+          execSync(`brotli -9 -c "${fullPath}" > "${fullPath}.br"`, { shell: true });
+          console.log(`  [BR] ${file}.br regenerated`);
+        } catch (e) {
+          console.warn(`  [WARN] brotli failed for ${file}: ${e.message}`);
+        }
+      }
+    }
+  }
+}
 function patchFile(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
   const count = content.split(OLD_REGEX_STR).length - 1;
