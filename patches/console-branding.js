@@ -88,6 +88,22 @@ if (!fs.existsSync(assetsDir)) {
       .replace(/https:\/\/logto\.io\/logo\.svg/g, NICEMATRIX_BANNER_SVG)
       .replace(/https:\/\/logto\.io\/logo-dark\.svg/g, NICEMATRIX_BANNER_SVG);
 
+    // Replace inline SVG topbar logo component (J8) with NiceMatrix img tag
+    const j8Start = content.indexOf('J8=t=>n.createElement("svg"');
+    const rCIdx = content.indexOf('rC="__cDzoA__topbar"');
+    if (j8Start !== -1 && rCIdx !== -1 && rCIdx > j8Start) {
+      const newJ8 = `J8=t=>n.createElement("img",{src:"${NICEMATRIX_BANNER_SVG}",height:28,alt:"NiceMatrix",...t}),`;
+      content = content.substring(0, j8Start) + newJ8 + content.substring(rCIdx);
+      console.log(`  [OK] ${bundle}: topbar SVG logo replaced`);
+    } else {
+      // Check if already patched
+      if (!content.includes('J8=t=>n.createElement("img"')) {
+        errors.push(`NO_MATCH_J8: topbar logo component J8 not found in ${bundle}`);
+      } else {
+        console.log(`  [SKIP] ${bundle}: topbar logo already patched`);
+      }
+    }
+
     fs.writeFileSync(fullPath, content, 'utf8');
     console.log(`  [OK] ${bundle}`);
     totalPatched++;
