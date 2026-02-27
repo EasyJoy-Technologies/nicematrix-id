@@ -94,14 +94,15 @@ if (!fs.existsSync(assetsDir)) {
     console.log(`  [SKIP] ${bundle}: J8 topbar logo (handled via custom_css)`);
 
     // Replace inline SVG welcome-screen logo component (i9) with NiceMatrix img tag
+    // End boundary: Ul="__FiTPO__container" appears ~8008 chars after i9 start (verified)
     const i9Start = content.indexOf('i9=t=>n.createElement("svg",{width:154');
-    const gmIdx = content.indexOf('const gm="__c-H-V__container"');
-    if (i9Start !== -1 && gmIdx !== -1 && gmIdx > i9Start) {
-      const newI9 = `i9=t=>n.createElement("img",{src:"${NICEMATRIX_BANNER_SVG}",height:48,alt:"NiceMatrix",...t})`;
-      content = content.substring(0, i9Start) + newI9 + content.substring(gmIdx - 1);
+    const ulIdx = content.indexOf('Ul="__FiTPO__container"', i9Start);
+    if (i9Start !== -1 && ulIdx !== -1 && ulIdx - i9Start < 12000) {
+      const newI9 = `i9=t=>n.createElement("img",{src:"${NICEMATRIX_BANNER_SVG}",height:48,alt:"NiceMatrix",...t}),`;
+      content = content.substring(0, i9Start) + newI9 + content.substring(ulIdx);
       console.log(`  [OK] ${bundle}: welcome screen SVG logo (i9) replaced`);
     } else if (!content.includes('i9=t=>n.createElement("img"')) {
-      errors.push(`NO_MATCH_I9: welcome logo component i9 not found in ${bundle}`);
+      errors.push(`NO_MATCH_I9: welcome logo component i9 not found in ${bundle} (i9=${i9Start}, ul=${ulIdx})`);
     } else {
       console.log(`  [SKIP] ${bundle}: welcome logo already patched`);
     }
