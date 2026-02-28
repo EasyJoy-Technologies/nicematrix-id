@@ -25,6 +25,12 @@ No dist bundle patching is used in the active workflow.
    - contactEmail: `support@nicematrix.com`
    - docs links remain official `docs.logto.io`
 
+4. OSS admin console API resource fix (to avoid 401 on internal pages):
+   - Override files:
+     - `logto-custom/overrides/packages/console/src/App.tsx`
+     - `logto-custom/overrides/packages/console/src/hooks/use-api.ts`
+   - Use admin tenant management API resource (`https://admin.logto.app/api`) for console API calls in OSS mode.
+
 ## How to add customization
 
 1. Locate target source file in `logto-upstream/`.
