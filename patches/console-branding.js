@@ -43,8 +43,7 @@ for (const bundle of bundles) {
                      c.includes('[pl(U1).indicator') || c.includes('[pl(J4).indicator');
   if (!hasMarkers) { console.log('  [SKIP] ' + bundle + ': no markers'); continue; }
 
-  // 2a. J8 topbar logo (SVG 90x28 → img NiceMatrix-170x64, height 64)
-  // End boundary is ',rC="__cDzoA__topbar"' — starts with comma, so no extra paren
+  // 2a. J8 topbar logo
   if (c.includes('J8=t=>n.createElement("img"')) {
     console.log('  [SKIP] ' + bundle + ': J8 done');
   } else {
@@ -58,8 +57,7 @@ for (const bundle of bundles) {
     } else { errors.push('NO_J8 in ' + bundle + ' s=' + s + ' e=' + e); }
   }
 
-  // 2b. i9 loading/welcome logo (SVG 154px → img, height 64)
-  // End boundary is ',Ul="__FiTPO__container"'
+  // 2b. i9 loading/welcome logo
   if (c.includes('i9=t=>n.createElement("img"')) {
     console.log('  [SKIP] ' + bundle + ': i9 done');
   } else {
@@ -90,16 +88,9 @@ for (const bundle of bundles) {
     console.log('  [SKIP] ' + bundle + ': resource indicator done');
   } else { errors.push('NO_RESOURCE in ' + bundle); }
 
-  // 2e. R8 hook
-  const R8O = '{isAuthenticated:o,getOrganizationToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:s,tenantId:r,language:i.language}),[r,s,t,o,i.language])';
-  const R8N = '{isAuthenticated:o,getAccessToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:()=>s("https://admin.logto.app/api"),tenantId:r,language:i.language}),[r,s,t,o,i.language])';
-  if (c.includes(R8O)) {
-    c = c.replace(R8O, R8N);
-    console.log('  [OK] ' + bundle + ': R8 hook patched');
-    changed = true;
-  } else if (c.includes('getAccessToken:s}=q()')) {
-    console.log('  [SKIP] ' + bundle + ': R8 done');
-  } else { errors.push('NO_R8 in ' + bundle); }
+  // 2e. R8 hook — REMOVED
+  // Was incorrectly replacing getOrganizationToken with getAccessToken,
+  // causing POST /oidc/token 400 on dashboard navigation → auto-logout.
 
   if (changed) { fs.writeFileSync(fp, c, 'utf8'); patched++; }
 }
