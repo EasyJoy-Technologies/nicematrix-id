@@ -16,6 +16,15 @@ No dist bundle patching is used in the active workflow.
    - Override file: `logto-custom/overrides/packages/toolkit/core-kit/src/regex.ts`
    - Rule: `/^[A-Z_a-z](?:[\w.]*\w)?$/`
 
+2. Branding seed logos use NiceMatrix assets:
+   - Override file: `logto-custom/overrides/packages/schemas/src/seeds/sign-in-experience.ts`
+   - Logo URL: `https://m.nicematrix.com/branding/NiceMatrix-170x64.svg`
+
+3. Console contact/brand external links:
+   - Override file: `logto-custom/overrides/packages/console/src/consts/external-links.ts`
+   - contactEmail: `support@nicematrix.com`
+   - docs links remain official `docs.logto.io`
+
 ## How to add customization
 
 1. Locate target source file in `logto-upstream/`.
