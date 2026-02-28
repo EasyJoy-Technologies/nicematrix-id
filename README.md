@@ -1,52 +1,33 @@
-# NiceMatrix 用户系统 (`nicematrix-id`)
+# NiceMatrix ID
 
-基于 **Logto** 的统一身份系统，用于支撑 NiceMatrix 全部产品与网站登录。
+Self-hosted Logto setup for `id.nicematrix.com` with a maintainable custom layer.
 
-- 生产域名：`id.nicematrix.com`
-- 目标：统一登录、统一用户身份、统一组织与权限模型
+## Repository Layout
 
-## 仓库职责
-
-本仓库只负责身份系统相关能力：
-- Logto 自托管部署配置
-- 认证参数管理（OIDC/OAuth2）
-- 登录体验与品牌化配置
-- 给客户端/服务端的接入文档
-
-> 业务数据、订阅、后台管理逻辑不在本仓库，见 `nicematrix-backend`。
-
-## 目录结构
-
-```
-.
-├── deploy/                    # 部署相关配置（Docker/Nginx/Env）
-├── docs/
-│   ├── architecture.md        # 架构说明
-│   └── integration/
-│       └── mobile-oidc.md     # 手机端接入说明
-├── scripts/                   # 运维脚本
-├── .env.example
-└── docker-compose.yml
+```text
+logto-upstream/   # Upstream Logto source mirror/submodule (no business edits)
+logto-custom/     # NiceMatrix customizations (branding, controlled patches)
+deploy/           # docker-compose, env, deployment scripts/config
+docs/             # architecture + API + integration docs
 ```
 
-## 快速开始（自托管）
+## Workflow
 
-1. 复制环境变量模板：
-   ```bash
-   cp .env.example .env
-   ```
-2. 修改 `.env` 中域名、数据库密码、管理员初始配置。
-3. 启动：
-   ```bash
-   docker compose up -d
-   ```
+1. Sync upstream source into `logto-upstream/`.
+2. Keep custom changes in `logto-custom/` (minimal, reviewed, documented).
+3. Build and deploy via `deploy/`.
+4. Update docs in the same PR when behavior/API changes.
 
-## 文档
+## Documentation
 
-- 架构说明：`docs/architecture.md`
-- 手机端 OIDC 接入：`docs/integration/mobile-oidc.md`
+- API spec: `docs/api/v1/openapi.yaml`
+- API guide: `docs/api/README.md`
+- Endpoint docs: `docs/api/v1/endpoints/`
+- Integration guide: `docs/integration/`
+- Customization/patch notes: `docs/patches.md`
 
-## 开发约定
+## Current status
 
-- 任何认证协议参数变更，都必须同步更新文档。
-- 回调 URI 变更必须在 PR 描述中列明影响范围（iOS/Android/Web）。
+- Running with Logto `1.37.0`
+- Branding patch is visual-only (logo/favicon)
+- Auth/token logic patches removed

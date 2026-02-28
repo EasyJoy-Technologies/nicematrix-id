@@ -1,0 +1,31 @@
+openapi: 3.1.0
+info:
+  title: NiceMatrix ID API
+  version: 1.0.0
+  description: |
+    Integration API documentation scaffold.
+    Expand paths and schemas as implementation is finalized.
+servers:
+  - url: https://id.nicematrix.com
+    description: Production
+security:
+  - bearerAuth: []
+paths:
+  /api/.well-known/endpoints/default:
+    get:
+      summary: Get endpoint metadata
+      description: Returns endpoint discovery metadata for admin console/OIDC clients.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

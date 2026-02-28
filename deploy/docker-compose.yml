@@ -11,7 +11,9 @@ services:
       - pg_data:/var/lib/postgresql/data
 
   logto:
-    build: .
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     image: nicematrix-logto:latest
     container_name: nicematrix-logto
     depends_on:
