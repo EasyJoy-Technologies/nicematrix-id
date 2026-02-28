@@ -51,7 +51,7 @@ for (const bundle of bundles) {
     const s = c.indexOf('J8=t=>n.createElement("svg",{width:90');
     const e = s > -1 ? c.indexOf(',rC="__cDzoA__topbar"', s) : -1;
     if (s !== -1 && e !== -1 && e - s < 25000) {
-      const img = 'J8=t=>n.createElement("img",{src:"' + TOPBAR_URL + '",height:64,style:{height:"64px",width:"auto"},alt:"NiceMatrix",...t})';
+      const img = 'J8=t=>n.createElement("img",{src:"' + TOPBAR_URL + '",height:32,style:{height:"32px",width:"auto"},alt:"NiceMatrix",...t})';
       c = c.slice(0, s) + img + c.slice(e);
       console.log('  [OK] ' + bundle + ': J8 topbar logo');
       changed = true;
@@ -66,7 +66,7 @@ for (const bundle of bundles) {
     const s = c.indexOf('i9=t=>n.createElement("svg",{width:154');
     const e = s > -1 ? c.indexOf(',Ul="__FiTPO__container"', s) : -1;
     if (s !== -1 && e !== -1 && e - s < 25000) {
-      const img = 'i9=t=>n.createElement("img",{src:"' + TOPBAR_URL + '",height:64,style:{height:"64px",width:"auto"},alt:"NiceMatrix",...t})';
+      const img = 'i9=t=>n.createElement("img",{src:"' + TOPBAR_URL + '",height:32,style:{height:"32px",width:"auto"},alt:"NiceMatrix",...t})';
       c = c.slice(0, s) + img + c.slice(e);
       console.log('  [OK] ' + bundle + ': i9 loading logo');
       changed = true;
