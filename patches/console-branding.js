@@ -40,7 +40,9 @@ for (const bundle of bundles) {
 
   const hasMarkers = c.includes('J8=t=>n.createElement("svg",{width:90') ||
                      c.includes('J8=t=>n.createElement("img"') ||
-                     c.includes('[pl(U1).indicator') || c.includes('[pl(J4).indicator');
+                     c.includes('i9=t=>n.createElement("svg",{width:154') ||
+                     c.includes('i9=t=>n.createElement("img"') ||
+                     c.includes('https://logto.io/logo.svg');
   if (!hasMarkers) { console.log('  [SKIP] ' + bundle + ': no markers'); continue; }
 
   // 2a. J8 topbar logo
@@ -79,14 +81,10 @@ for (const bundle of bundles) {
     changed = true;
   }
 
-  // 2d. resource indicator U1 → J4
-  if (c.includes('[pl(U1).indicator,he.indicator]')) {
-    c = c.replace('[pl(U1).indicator,he.indicator]', '[pl(J4).indicator,he.indicator]');
-    console.log('  [OK] ' + bundle + ': resource indicator U1->J4');
-    changed = true;
-  } else if (c.includes('[pl(J4).indicator,he.indicator]')) {
-    console.log('  [SKIP] ' + bundle + ': resource indicator done');
-  } else { errors.push('NO_RESOURCE in ' + bundle); }
+  // 2d. resource indicator U1→J4 — REMOVED
+  // J4="admin" (a string), not a resource object. Replacing U1 with J4 in pl(U1).indicator
+  // caused pl("admin") to be called, resulting in wrong/missing resource indicator in
+  // token requests → POST /oidc/token 400 → forced logout on every page navigation.
 
   // 2e. R8 hook — REMOVED
   // Was incorrectly replacing getOrganizationToken with getAccessToken,
