@@ -1,12 +1,27 @@
 #!/usr/bin/env node
+/**
+ * Patch: Replace Logto branding + fix OSS token flow
+ * Target: Logto 1.36.0 console bundle
+ *
+ * OSS token fix:
+ *   In OSS mode, getOrganizationToken() returns undefined (no org context).
+ *   The API hook (A8) uses getOrganizationToken to authenticate /api/* calls.
+ *   Fix: replace getOrganizationToken with getAccessToken("https://default.logto.app/api")
+ *   which is the correct management API resource indicator for Logto OSS.
+ *   (U1="default" stays unchanged so initial auth includes this resource)
+ *
+ * Do NOT change pl(U1) → pl(J4): U1="default" is correct for OSS initial auth.
+ */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const CONSOLE_DIST = '/etc/logto/packages/console/dist';
 const ICON_URL   = 'https://m.nicematrix.com/branding/nicematrix-logo-1024.svg';
 const TOPBAR_URL = 'https://m.nicematrix.com/branding/NiceMatrix-170x64.svg';
+const MGMT_API   = 'https://default.logto.app/api';
 let errors = [], patched = 0;
 
+// 1. index.html favicon
 const htmlPath = path.join(CONSOLE_DIST, 'index.html');
 if (fs.existsSync(htmlPath)) {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -20,6 +35,7 @@ if (fs.existsSync(htmlPath)) {
   } else { console.log('  [SKIP] index.html already patched'); }
 } else { errors.push('MISSING: ' + htmlPath); }
 
+// 2. JS bundle
 const assetsDir = path.join(CONSOLE_DIST, 'assets');
 if (!fs.existsSync(assetsDir)) { errors.push('MISSING_DIR: ' + assetsDir); process.exit(1); }
 const bundles = fs.readdirSync(assetsDir).filter(f => f.startsWith('index-') && f.endsWith('.js') && !f.endsWith('.js.map'));
@@ -29,13 +45,13 @@ for (const bundle of bundles) {
   let c = fs.readFileSync(fp, 'utf8');
   let changed = false;
 
-  const hasMarkers = c.includes('J8=t=>n.createElement("svg",{width:90') ||
-                     c.includes('J8=t=>n.createElement("img"') ||
-                     c.includes('i9=t=>n.createElement("svg",{width:154') ||
-                     c.includes('i9=t=>n.createElement("img"') ||
-                     c.includes('https://logto.io/logo.svg') ||
-                     c.includes('[pl(U1).indicator,he.indicator]') ||
-                     c.includes('[pl(J4).indicator,he.indicator]');
+  const hasMarkers =
+    c.includes('J8=t=>n.createElement("svg",{width:90') ||
+    c.includes('J8=t=>n.createElement("img"') ||
+    c.includes('i9=t=>n.createElement("svg",{width:154') ||
+    c.includes('i9=t=>n.createElement("img"') ||
+    c.includes('https://logto.io/logo.svg') ||
+    c.includes('getOrganizationToken:s}=q()');
   if (!hasMarkers) { console.log('  [SKIP] ' + bundle + ': no markers'); continue; }
 
   // 2a. J8 topbar logo
@@ -49,7 +65,7 @@ for (const bundle of bundles) {
       c = c.slice(0, s) + img + c.slice(e);
       console.log('  [OK] ' + bundle + ': J8 topbar logo');
       changed = true;
-    } else { errors.push('NO_J8 in ' + bundle + ' s=' + s + ' e=' + e); }
+    } else { errors.push('NO_J8 in ' + bundle); }
   }
 
   // 2b. i9 loading/welcome logo
@@ -63,7 +79,7 @@ for (const bundle of bundles) {
       c = c.slice(0, s) + img + c.slice(e);
       console.log('  [OK] ' + bundle + ': i9 loading logo');
       changed = true;
-    } else { errors.push('NO_I9 in ' + bundle + ' s=' + s + ' e=' + e); }
+    } else { errors.push('NO_I9 in ' + bundle); }
   }
 
   // 2c. logto.io logo URLs
@@ -74,16 +90,19 @@ for (const bundle of bundles) {
     changed = true;
   }
 
-  // 2d. OSS resource indicator fix: U1="default" -> J4="admin"
-  // In OSS mode (I=false), pl(U1).indicator = "https://default.logto.app/api"
-  // but admin console API calls need "https://admin.logto.app/api" (pl(J4))
-  // Without this, no access token for admin API -> 401 on all /api/* calls
-  if (c.includes('[pl(U1).indicator,he.indicator]')) {
-    c = c.replace('[pl(U1).indicator,he.indicator]', '[pl(J4).indicator,he.indicator]');
-    console.log('  [OK] ' + bundle + ': OSS resource indicator U1->J4');
+  // 2d. OSS API auth fix: getOrganizationToken → getAccessToken(default mgmt API)
+  // In OSS, getOrganizationToken() returns undefined → no Bearer token on /api/* calls
+  // Fix: use getAccessToken("https://default.logto.app/api") instead
+  const R8O = '{isAuthenticated:o,getOrganizationToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:s,tenantId:r,language:i.language}),[r,s,t,o,i.language])';
+  const R8N = '{isAuthenticated:o,getAccessToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:()=>s("' + MGMT_API + '"),tenantId:r,language:i.language}),[r,s,t,o,i.language])';
+  if (c.includes(R8O)) {
+    c = c.replace(R8O, R8N);
+    console.log('  [OK] ' + bundle + ': R8 OSS API auth fix');
     changed = true;
-  } else if (c.includes('[pl(J4).indicator,he.indicator]')) {
-    console.log('  [SKIP] ' + bundle + ': resource indicator already fixed');
+  } else if (c.includes('getAccessToken:s}=q()')) {
+    console.log('  [SKIP] ' + bundle + ': R8 already done');
+  } else {
+    errors.push('NO_R8 in ' + bundle);
   }
 
   if (changed) { fs.writeFileSync(fp, c, 'utf8'); patched++; }
