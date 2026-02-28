@@ -10,6 +10,12 @@ We now use **source-based customization** only.
 
 No dist bundle patching is used in the active workflow.
 
+## Active customizations
+
+1. Username regex allows dot (`.`) in the middle:
+   - Override file: `logto-custom/overrides/packages/toolkit/core-kit/src/regex.ts`
+   - Rule: `/^[A-Z_a-z](?:[\w.]*\w)?$/`
+
 ## How to add customization
 
 1. Locate target source file in `logto-upstream/`.
