@@ -12,4 +12,5 @@ RUN apk add --no-cache brotli
 COPY patches/ /tmp/patches/
 RUN node /tmp/patches/username-regex.js && \
     node /tmp/patches/console-branding.js && \
+    node /tmp/patches/server-rotation.js && \
     rm -rf /tmp/patches/
