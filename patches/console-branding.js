@@ -90,20 +90,7 @@ for (const bundle of bundles) {
     console.log('  [SKIP] ' + bundle + ': resource indicator done');
   } else { errors.push('NO_RESOURCE in ' + bundle); }
 
-  // 2e. Remove O.Organizations/O.OrganizationRoles from SDK scopes
-  // These cause a 3rd parallel refresh_token request for urn:logto:resource:organizations,
-  // triggering refresh token rotation conflict (400) → token family revoked → forced logout.
-  const SCOPES_OLD = '[O.Profile,O.Email,O.Phone,O.Identities,O.CustomData,O.Organizations,O.OrganizationRoles,n2.All';
-  const SCOPES_NEW = '[O.Profile,O.Email,O.Phone,O.Identities,O.CustomData,n2.All';
-  if (c.includes(SCOPES_OLD)) {
-    c = c.replace(SCOPES_OLD, SCOPES_NEW);
-    console.log('  [OK] ' + bundle + ': removed org scopes (fix token rotation race)');
-    changed = true;
-  } else if (c.includes(SCOPES_NEW)) {
-    console.log('  [SKIP] ' + bundle + ': org scopes already removed');
-  } else { errors.push('NO_SCOPES in ' + bundle); }
-
-  // 2f. R8 hook
+  // 2e. R8 hook
   const R8O = '{isAuthenticated:o,getOrganizationToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:s,tenantId:r,language:i.language}),[r,s,t,o,i.language])';
   const R8N = '{isAuthenticated:o,getAccessToken:s}=q();return n.useMemo(()=>A8({hideErrorToast:t,isAuthenticated:o,getOrganizationToken:()=>s("https://admin.logto.app/api"),tenantId:r,language:i.language}),[r,s,t,o,i.language])';
   if (c.includes(R8O)) {
