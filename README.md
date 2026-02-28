@@ -6,7 +6,7 @@ Self-hosted Logto setup for `id.nicematrix.com` with a maintainable custom layer
 
 ```text
 logto-upstream/   # Upstream Logto source mirror/submodule (no business edits)
-logto-custom/     # NiceMatrix customizations (branding, controlled patches)
+logto-custom/     # NiceMatrix customizations (source overrides + custom Dockerfile)
 deploy/           # docker-compose, env, deployment scripts/config
 docs/             # architecture + API + integration docs
 ```
@@ -29,5 +29,5 @@ docs/             # architecture + API + integration docs
 ## Current status
 
 - Running with Logto `1.37.0`
-- Branding patch is visual-only (logo/favicon)
+- Source-based customization mode enabled (no dist patching)
 - Auth/token logic patches removed

@@ -1,35 +1,27 @@
 # Customizations
 
-## Current policy (baseline)
+## Current policy
 
-To keep upgrades stable, we currently apply **visual-only** customization:
+We now use **source-based customization** only.
 
-- Console topbar/welcome logo replacement
-- Favicon replacement
-- `logto.io` logo URL replacement
+- Upstream source: `logto-upstream/`
+- NiceMatrix overrides: `logto-custom/overrides/`
+- Build file: `logto-custom/Dockerfile`
 
-No auth/token behavior patches are applied in the baseline image.
+No dist bundle patching is used in the active workflow.
 
-## Location
+## How to add customization
 
-- Patch script: `logto-custom/patches/console-branding.js`
-- Build file: `deploy/Dockerfile`
+1. Locate target source file in `logto-upstream/`.
+2. Copy the same relative path into `logto-custom/overrides/`.
+3. Edit only the required lines in the override copy.
+4. Build via `deploy/docker-compose.yml` (which uses `logto-custom/Dockerfile`).
+5. Document the change in this file and API/integration docs when behavior changes.
 
 ## Upgrade checklist
 
-1. Bump `FROM svhd/logto:<version>` in `deploy/Dockerfile`
-2. Rebuild image
-3. Verify branding patch still matches bundle markers
-4. Run smoke tests:
-   - sign-in
-   - menu navigation
-   - key admin pages load
-
-## Future custom features
-
-Behavior changes (e.g., username regex) should be implemented in the source-maintained workflow and documented with:
-
-- reason
-- exact files changed
-- rollback path
-- upgrade conflict notes
+1. Bump `logto-upstream` submodule tag.
+2. Rebuild image.
+3. Resolve override drift if upstream files changed.
+4. Run smoke tests (sign-in, menu navigation, core pages).
+5. Update docs.

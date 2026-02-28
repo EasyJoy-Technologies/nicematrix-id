@@ -2,8 +2,7 @@
 
 ## Files
 
-- `docker-compose.yml` - runtime stack
-- `Dockerfile` - image build (currently branding-only patch)
+- `docker-compose.yml` - runtime stack (builds via `logto-custom/Dockerfile`)
 - `.env.example` - environment template
 - `nginx.id.nicematrix.conf.example` - reverse proxy sample
 

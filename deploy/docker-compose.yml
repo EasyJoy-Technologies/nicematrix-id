@@ -13,7 +13,7 @@ services:
   logto:
     build:
       context: ..
-      dockerfile: deploy/Dockerfile
+      dockerfile: logto-custom/Dockerfile
     image: nicematrix-logto:latest
     container_name: nicematrix-logto
     depends_on:
