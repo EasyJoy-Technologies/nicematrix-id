@@ -1,0 +1,3 @@
+[submodule "logto-upstream"]
+	path = logto-upstream
+	url = https://github.com/logto-io/logto.git
