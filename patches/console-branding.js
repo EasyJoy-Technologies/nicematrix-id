@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-/**
- * Patch: Replace Logto branding with NiceMatrix branding
- * Target: Logto 1.36.0 console bundle index-qI5nc3As.js
- */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +7,6 @@ const ICON_URL   = 'https://m.nicematrix.com/branding/nicematrix-logo-1024.svg';
 const TOPBAR_URL = 'https://m.nicematrix.com/branding/NiceMatrix-170x64.svg';
 let errors = [], patched = 0;
 
-// 1. index.html favicon
 const htmlPath = path.join(CONSOLE_DIST, 'index.html');
 if (fs.existsSync(htmlPath)) {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -22,15 +17,11 @@ if (fs.existsSync(htmlPath)) {
     fs.writeFileSync(htmlPath, html, 'utf8');
     console.log('  [OK] index.html favicon');
     patched++;
-  } else {
-    console.log('  [SKIP] index.html already patched');
-  }
+  } else { console.log('  [SKIP] index.html already patched'); }
 } else { errors.push('MISSING: ' + htmlPath); }
 
-// 2. JS bundle
 const assetsDir = path.join(CONSOLE_DIST, 'assets');
 if (!fs.existsSync(assetsDir)) { errors.push('MISSING_DIR: ' + assetsDir); process.exit(1); }
-
 const bundles = fs.readdirSync(assetsDir).filter(f => f.startsWith('index-') && f.endsWith('.js') && !f.endsWith('.js.map'));
 
 for (const bundle of bundles) {
@@ -42,7 +33,9 @@ for (const bundle of bundles) {
                      c.includes('J8=t=>n.createElement("img"') ||
                      c.includes('i9=t=>n.createElement("svg",{width:154') ||
                      c.includes('i9=t=>n.createElement("img"') ||
-                     c.includes('https://logto.io/logo.svg');
+                     c.includes('https://logto.io/logo.svg') ||
+                     c.includes('[pl(U1).indicator,he.indicator]') ||
+                     c.includes('[pl(J4).indicator,he.indicator]');
   if (!hasMarkers) { console.log('  [SKIP] ' + bundle + ': no markers'); continue; }
 
   // 2a. J8 topbar logo
@@ -81,31 +74,31 @@ for (const bundle of bundles) {
     changed = true;
   }
 
-  // 2d. resource indicator U1→J4 — REMOVED
-  // J4="admin" (a string), not a resource object. Replacing U1 with J4 in pl(U1).indicator
-  // caused pl("admin") to be called, resulting in wrong/missing resource indicator in
-  // token requests → POST /oidc/token 400 → forced logout on every page navigation.
-
-  // 2e. R8 hook — REMOVED
-  // Was incorrectly replacing getOrganizationToken with getAccessToken,
-  // causing POST /oidc/token 400 on dashboard navigation → auto-logout.
+  // 2d. OSS resource indicator fix: U1="default" -> J4="admin"
+  // In OSS mode (I=false), pl(U1).indicator = "https://default.logto.app/api"
+  // but admin console API calls need "https://admin.logto.app/api" (pl(J4))
+  // Without this, no access token for admin API -> 401 on all /api/* calls
+  if (c.includes('[pl(U1).indicator,he.indicator]')) {
+    c = c.replace('[pl(U1).indicator,he.indicator]', '[pl(J4).indicator,he.indicator]');
+    console.log('  [OK] ' + bundle + ': OSS resource indicator U1->J4');
+    changed = true;
+  } else if (c.includes('[pl(J4).indicator,he.indicator]')) {
+    console.log('  [SKIP] ' + bundle + ': resource indicator already fixed');
+  }
 
   if (changed) { fs.writeFileSync(fp, c, 'utf8'); patched++; }
 }
 
-// Summary
 console.log('\n=== Console Branding Summary ===');
 console.log('Patched: ' + patched);
 if (errors.length > 0) { errors.forEach(e => console.error('  ERROR: ' + e)); process.exit(1); }
 console.log('All patches applied.\n');
 
-// Recompress
 const { execSync } = require('child_process');
 const jsFiles = fs.readdirSync(assetsDir).filter(f => f.startsWith('index-') && f.endsWith('.js') && !f.endsWith('.js.map'));
 for (const f of jsFiles) {
   const fp = path.join(assetsDir, f);
-  try { execSync('gzip -9 -c "' + fp + '" > "' + fp + '.gz"'); console.log('  [GZ] ' + f); } catch(e) { console.warn('  [WARN] gzip: ' + e.message); }
-  if (fs.existsSync(fp + '.br')) {
-    try { execSync('brotli -9 -c "' + fp + '" > "' + fp + '.br"'); console.log('  [BR] ' + f); } catch(e) { console.warn('  [WARN] brotli: ' + e.message); }
-  }
+  try { execSync('gzip -9 -c "' + fp + '" > "' + fp + '.gz"'); } catch(e) {}
+  if (fs.existsSync(fp + '.br')) { try { execSync('brotli -9 -c "' + fp + '" > "' + fp + '.br"'); } catch(e) {} }
 }
+console.log('Recompressed.');
