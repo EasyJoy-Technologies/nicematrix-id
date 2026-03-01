@@ -31,6 +31,12 @@ No dist bundle patching is used in the active workflow.
      - `logto-custom/overrides/packages/console/src/hooks/use-api.ts`
    - Use admin tenant management API resource (`https://admin.logto.app/api`) for console API calls in OSS mode.
 
+5. Allow `hideLogtoBranding` in OSS (remove environment block):
+   - Override file: `logto-custom/overrides/packages/core/src/routes/sign-in-experience/index.ts`
+   - Behavior:
+     - Cloud: keep BYUI quota guard
+     - OSS: allow saving `hideLogtoBranding` without `request.invalid_input`
+
 ## How to add customization
 
 1. Locate target source file in `logto-upstream/`.
