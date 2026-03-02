@@ -1,0 +1,17 @@
+@use '@/scss/underscore' as _;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  color: var(--color-text);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  svg {
+    height: 48px;
+    width: auto;
+    margin-bottom: _.unit(8);
+  }
+}
