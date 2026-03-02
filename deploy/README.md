@@ -1,25 +1,27 @@
 # Deploy
 
-## Files
+完整部署手册见：[docs/deployment.md](../docs/deployment.md)
 
-- `docker-compose.yml` - runtime stack (builds via `logto-custom/Dockerfile`)
-- `.env.example` - environment template
-- `nginx.id.nicematrix.conf.example` - reverse proxy sample
+## 文件说明
 
-## Quick start
+- `docker-compose.yml` — 运行时 stack（postgres + logto）
+- `.env.example` — 环境变量模板，复制为 `.env` 后填写
+- `nginx.id.nicematrix.conf.example` — Nginx 反向代理示例配置
+- `deploy.sh` — 一键构建 + 启动 + DB alteration 脚本
 
-```bash
-cp deploy/.env.example deploy/.env
-cd deploy
-docker compose up -d --build
-```
-
-## Upgrade notes
-
-When upgrading Logto versions, run database alterations after image upgrade:
+## 快速参考
 
 ```bash
-cd deploy
+# 构建镜像（在项目根目录执行）
+docker build -t nicematrix-logto:latest . -f logto-custom/Dockerfile
+
+# 启动 stack（在 deploy/ 目录执行）
+docker compose up -d
+
+# 查看日志
+docker logs nicematrix-logto --tail 50 -f
+
+# DB alteration（升级 Logto 版本后执行）
 docker compose run --rm --entrypoint="" logto \
   node /etc/logto/packages/cli/bin/logto.js database alteration deploy next
 ```

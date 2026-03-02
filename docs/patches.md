@@ -52,3 +52,14 @@ No dist bundle patching is used in the active workflow.
 3. Resolve override drift if upstream files changed.
 4. Run smoke tests (sign-in, menu navigation, core pages).
 5. Update docs.
+
+6. AppLoading 加载动画 Logo 尺寸限制：
+   - Override 文件：`logto-custom/overrides/packages/console/src/components/AppLoading/index.module.scss`
+   - 原因：上游 SCSS 对 svg 只设 `margin-bottom`，无尺寸约束，自定义 Logo 会撑满屏幕
+   - 修改：在 `.container svg {}` 中添加 `height: 48px; width: auto`
+
+7. 品牌名称 mainTitle 改为 NiceMatrix：
+   - Override 文件：`logto-custom/overrides/packages/console/src/consts/tenants.ts`
+   - 原因：浏览器标题栏显示 `Logto Console`
+   - 修改：`mainTitle = isCloud ? 'NiceMatrix Cloud' : 'NiceMatrix Console'`
+   - 注意：仅改字符串值，变量名 `mainTitle` 及其他代码保持不变
