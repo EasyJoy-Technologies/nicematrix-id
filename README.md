@@ -7,7 +7,7 @@ Self-hosted Logto setup for `id.nicematrix.com` with a maintainable custom layer
 ```text
 logto-upstream/   # Upstream Logto source mirror/submodule (no business edits)
 logto-custom/     # NiceMatrix customizations (source overrides + custom Dockerfile)
-deploy/           # docker-compose, env, deployment scripts/config
+deploy/           # 部署文档与脚本专用（docker-compose, env, deployment scripts/config）
 docs/             # architecture + API + integration docs
 ```
 

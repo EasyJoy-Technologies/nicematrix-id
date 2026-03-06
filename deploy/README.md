@@ -1,5 +1,10 @@
 # Deploy
 
+> ⚠️ 本目录为**部署文档与部署脚本专用**（deploy assets only）。
+> - 仅放置部署相关文件：compose / env 模板 / nginx 示例 / deploy 脚本
+> - 不放业务代码
+> - 修改前请先确认当前生效的运行路径与 compose project，避免误改
+
 完整部署手册见：[docs/deployment.md](../docs/deployment.md)
 
 ## 文件说明
