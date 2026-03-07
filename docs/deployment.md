@@ -320,6 +320,29 @@ docker logs nicematrix-logto 2>&1 | grep -i "admin\|invitation\|http"
 
 ---
 
+### Management API audience / resource 标识符说明
+
+NiceMatrix 当前已将 Logto Management API 的 audience 标识符从 `*.logto.app` 改为本域名规则：
+
+- admin tenant API: `https://id.nicematrix.com/admin/api`
+- admin tenant Me API: `https://id.nicematrix.com/admin/me`
+- default tenant API: `https://id.nicematrix.com/default/api`
+
+对应源码覆盖点：
+- `logto-custom/overrides/packages/schemas/src/seeds/management-api.ts`
+
+对应 backend（nicematrix-backend）M2M 配置要求：
+- `resource` 必须与上面的 admin API 完全一致（`https://id.nicematrix.com/admin/api`）。
+
+快速自检（M2M token audience）：
+```bash
+source /var/www/nicematrix-backend/.env
+curl -s -X POST "https://id.nicematrix.com/oidc/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=${LOGTO_M2M_CLIENT_ID}&client_secret=${LOGTO_M2M_CLIENT_SECRET}&scope=all&resource=https%3A%2F%2Fid.nicematrix.com%2Fadmin%2Fapi" \
+  | jq -r '.access_token' | awk '{print length($0)}'
+```
+
 ### 忘记更新 patches.md
 
 每次在 `logto-custom/overrides/` 添加或修改覆盖文件后，同步更新 `docs/patches.md`。

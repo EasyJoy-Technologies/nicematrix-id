@@ -21,12 +21,18 @@
 docker build -t nicematrix-logto:latest . -f logto-custom/Dockerfile
 
 # 启动 stack（在 deploy/ 目录执行）
-docker compose up -d
+# 建议固定 compose project 名，避免网络/容器名漂移
+docker compose -p nicematrix-id up -d
 
 # 查看日志
 docker logs nicematrix-logto --tail 50 -f
 
 # DB alteration（升级 Logto 版本后执行）
-docker compose run --rm --entrypoint="" logto \
+docker compose -p nicematrix-id run --rm --entrypoint="" logto \
   node /etc/logto/packages/cli/bin/logto.js database alteration deploy next
 ```
+
+## 运行注意
+
+- 建议始终使用 `-p nicematrix-id`，确保服务加入 `nicematrix-id_default` 网络。
+- 若 Logto 日志出现 `ENOTFOUND postgres`，优先检查容器网络是否仍在 `nicematrix-id_default`。

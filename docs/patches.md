@@ -29,9 +29,23 @@ No dist bundle patching is used in the active workflow.
    - Override files:
      - `logto-custom/overrides/packages/console/src/App.tsx`
      - `logto-custom/overrides/packages/console/src/hooks/use-api.ts`
-   - Use admin tenant management API resource (`https://admin.logto.app/api`) for console API calls in OSS mode.
+   - Use admin tenant management API resource for console API calls in OSS mode.
 
-5. Allow `hideLogtoBranding` in OSS (remove environment block):
+5. Management API resource indicator domain override (remove `*.logto.app` audience strings):
+   - Override file:
+     - `logto-custom/overrides/packages/schemas/src/seeds/management-api.ts`
+   - Indicator rule:
+     - from: `https://${tenantId}.logto.app/${path}`
+     - to:   `https://id.nicematrix.com/${tenantId}/${path}`
+   - Effective indicators in current deployment:
+     - `https://id.nicematrix.com/admin/api`
+     - `https://id.nicematrix.com/admin/me`
+     - `https://id.nicematrix.com/default/api`
+   - Notes:
+     - This change is source-level (schema seed function override), not only DB patch.
+     - `nicematrix-backend` M2M `resource` must stay aligned with this value.
+
+6. Allow `hideLogtoBranding` in OSS (remove environment block):
    - Override file: `logto-custom/overrides/packages/core/src/routes/sign-in-experience/index.ts`
    - Behavior:
      - Cloud: keep BYUI quota guard
