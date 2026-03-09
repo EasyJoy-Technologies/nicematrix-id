@@ -1,0 +1,300 @@
+import {
+  LogResult,
+  userInfoSelectFields,
+  type Hook,
+  type HookConfig,
+  type HookEvent,
+  type HookEventPayload,
+  type HookTestErrorResponseData,
+  type InteractionHookEventPayload,
+} from '@logto/schemas';
+import { generateStandardId, normalizeError, type ConsoleLog } from '@logto/shared';
+import { conditional, deduplicate, type Optional, pick, trySafe } from '@silverhand/essentials';
+import { HTTPError } from 'ky';
+import pMap from 'p-map';
+
+import RequestError from '#src/errors/RequestError/index.js';
+import { LogEntry } from '#src/middleware/koa-audit-log.js';
+import type Queries from '#src/tenants/Queries.js';
+
+import {
+  type HookContextManager,
+  type InteractionHookContextManager,
+  type HookMetadata,
+  type HookContext,
+} from './context-manager.js';
+import { generateHookTestPayload, parseResponse, sendWebhookRequest } from './utils.js';
+
+type BetterOmit<T, Ignore> = {
+  [key in keyof T as key extends Ignore ? never : key]: T[key];
+};
+
+type HookEventPayloadWithoutHookId = BetterOmit<HookEventPayload, 'hookId'>;
+
+export const createHookLibrary = (queries: Queries) => {
+  const {
+    applications: { findApplicationById },
+    logs: { insertLog },
+    // TODO: @gao should we use the library function thus we can pass full userinfo to the payload?
+    users: { findUserById },
+    hooks: { findAllHooks, findHookById },
+  } = queries;
+
+  /**
+   * Trigger web hook with the given payload and create a log entry for the request and response.
+   */
+  const sendWebhook = async (
+    hook: Hook,
+    payload: HookEventPayloadWithoutHookId,
+    consoleLog: ConsoleLog
+  ) => {
+    const { id, config, signingKey } = hook;
+    consoleLog.info(`\tTriggering hook ${id} due to ${payload.event} event`);
+
+    const json: HookEventPayload = { ...payload, hookId: id };
+    const logEntry = new LogEntry(`TriggerHook.${payload.event}`);
+
+    logEntry.append({ hookId: id, hookRequest: { body: json } });
+
+    // Trigger web hook and log response
+    try {
+      const response = await sendWebhookRequest({
+        hookConfig: config,
+        payload: json,
+        signingKey,
+      });
+
+      logEntry.append({
+        response: await parseResponse(response),
+      });
+    } catch (error: unknown) {
+      logEntry.append({
+        result: LogResult.Error,
+        response: conditional(error instanceof HTTPError && (await parseResponse(error.response))),
+        error: String(normalizeError(error)),
+      });
+    }
+
+    consoleLog.info(
+      `\tHook ${id} ${logEntry.payload.result === LogResult.Success ? 'succeeded' : 'failed'}`
+    );
+
+    await insertLog({
+      id: generateStandardId(),
+      key: logEntry.key,
+      payload: logEntry.payload,
+    });
+  };
+
+  /**
+   * Trigger multiple web hooks with concurrency control.
+   */
+  const sendWebhooks = async <T extends HookEventPayloadWithoutHookId>(
+    webhooks: Array<{ hook: Hook; payload: T }>,
+    consoleLog: ConsoleLog
+  ) =>
+    pMap(webhooks, async ({ hook, payload }) => sendWebhook(hook, payload, consoleLog), {
+      concurrency: 10,
+    });
+
+  const fetchInteractionHookUsersById = async (
+    contextManager: InteractionHookContextManager
+  ): Promise<Map<string, Optional<Awaited<ReturnType<typeof findUserById>>>>> => {
+    const userIds = deduplicate(contextManager.interactionHookResults.map(({ userId }) => userId));
+
+    // Current interaction flow typically yields very few user IDs per request.
+    // If this cardinality grows in the future, switch to pMap with capped concurrency.
+    const users: Array<readonly [string, Optional<Awaited<ReturnType<typeof findUserById>>>]> =
+      await Promise.all(
+        userIds.map(async (userId) => [userId, await trySafe(findUserById(userId))] as const)
+      );
+
+    return new Map(users);
+  };
+
+  /**
+   * Trigger interaction hooks with the given interaction context and result.
+   */
+  const triggerInteractionHooks = async (
+    consoleLog: ConsoleLog,
+    contextManager: InteractionHookContextManager
+  ) => {
+    if (contextManager.interactionHookResults.length === 0) {
+      return;
+    }
+
+    const { interactionEvent, sessionId, applicationId, userIp, userAgent, deviceRef, appSlug } =
+      contextManager.metadata;
+
+    const found = await findAllHooks();
+
+    if (found.length === 0) {
+      return;
+    }
+
+    const [application, usersById] = await Promise.all([
+      trySafe(async () => conditional(applicationId && (await findApplicationById(applicationId)))),
+      fetchInteractionHookUsersById(contextManager),
+    ]);
+
+    const webhooks: Array<{
+      hook: Hook;
+      payload: BetterOmit<InteractionHookEventPayload, 'hookId'>;
+    }> = [];
+
+    for (const interactionHookResult of contextManager.interactionHookResults) {
+      const { userId, event } = interactionHookResult;
+      const customPayload =
+        'payload' in interactionHookResult ? interactionHookResult.payload : undefined;
+      const hookEvent = event ?? contextManager.hookEvent;
+
+      const hooks = found.filter(
+        ({ event, events, enabled }) =>
+          enabled && (events.length > 0 ? events.includes(hookEvent) : event === hookEvent) // For backward compatibility
+      );
+
+      if (hooks.length === 0) {
+        continue;
+      }
+
+      const user = usersById.get(userId);
+
+      const payload = {
+        ...customPayload,
+        event: hookEvent,
+        interactionEvent,
+        createdAt: new Date().toISOString(),
+        sessionId,
+        userAgent,
+        userId,
+        userIp,
+        // [NiceMatrix] Include device_ref and app_slug in webhook payload
+        deviceRef,
+        appSlug,
+        user: user && pick(user, ...userInfoSelectFields),
+        application: application && pick(application, 'id', 'type', 'name', 'description'),
+      } satisfies BetterOmit<InteractionHookEventPayload, 'hookId'>;
+
+      // eslint-disable-next-line @silverhand/fp/no-mutating-methods
+      webhooks.push(...hooks.map((hook) => ({ hook, payload })));
+    }
+
+    if (webhooks.length === 0) {
+      return;
+    }
+
+    await sendWebhooks(webhooks, consoleLog);
+  };
+
+  /**
+   * Trigger data hooks with the given data mutation context. All context objects will be used to trigger hooks.
+   */
+  const triggerDataHooks = async (consoleLog: ConsoleLog, contextManager: HookContextManager) => {
+    if (contextManager.dataHookContextArray.length === 0) {
+      return;
+    }
+
+    const { dataHookContextArray: contextArray, metadata } = contextManager;
+
+    const webhooks = await buildWebhooks({ contextArray, metadata });
+    await sendWebhooks(webhooks, consoleLog);
+  };
+
+  /**
+   * Trigger exception hooks with the given exception mutation context. All context objects will be used to trigger hooks.
+   */
+  const triggerExceptionHooks = async (
+    consoleLog: ConsoleLog,
+    contextManager: HookContextManager
+  ) => {
+    if (contextManager.exceptionHookContextArray.length === 0) {
+      return;
+    }
+
+    const { exceptionHookContextArray: contextArray, metadata } = contextManager;
+
+    const webhooks = await buildWebhooks({ contextArray, metadata });
+    await sendWebhooks(webhooks, consoleLog);
+  };
+
+  const triggerTestHook = async (hookId: string, events: HookEvent[], config: HookConfig) => {
+    const { signingKey } = await findHookById(hookId);
+    try {
+      await Promise.all(
+        events.map(async (event) => {
+          const testPayload = generateHookTestPayload(hookId, event);
+          await sendWebhookRequest({
+            hookConfig: config,
+            payload: testPayload,
+            signingKey,
+          });
+        })
+      );
+    } catch (error: unknown) {
+      if (error instanceof HTTPError) {
+        throw new RequestError(
+          {
+            status: 422,
+            code: 'hook.endpoint_responded_with_error',
+          },
+          {
+            responseStatus: error.response.status,
+            responseBody: await error.response.text(),
+          } satisfies HookTestErrorResponseData
+        );
+      }
+
+      throw new RequestError({
+        code: 'hook.send_test_payload_failed',
+        message: conditional(error instanceof Error && String(error)) ?? 'Unknown error',
+        status: 422,
+      });
+    }
+  };
+
+  /**
+   * Shared builder to construct webhook invocation list for data-like mutation contexts.
+   */
+  async function buildWebhooks<Event extends HookEvent>({
+    contextArray,
+    metadata,
+  }: {
+    contextArray: Array<HookContext & { event: Event }>;
+    metadata: HookMetadata;
+  }) {
+    const foundHooks = await findAllHooks();
+
+    // Fetch application detail if available
+    const { applicationId } = metadata;
+    const application =
+      foundHooks.length > 0 && applicationId
+        ? await trySafe(async () => findApplicationById(applicationId))
+        : undefined;
+
+    return contextArray.flatMap(({ event, ...rest }) => {
+      const hooks = foundHooks.filter(
+        ({ event: hookEvent, events, enabled }) =>
+          enabled && (events.length > 0 ? events.includes(event) : event === hookEvent)
+      );
+
+      const payload = {
+        event,
+        createdAt: new Date().toISOString(),
+        ...metadata,
+        ...conditional(
+          application && { application: pick(application, 'id', 'type', 'name', 'description') }
+        ),
+        ...rest,
+      };
+
+      return hooks.map((hook) => ({ hook, payload }));
+    });
+  }
+
+  return {
+    triggerInteractionHooks,
+    triggerDataHooks,
+    triggerExceptionHooks,
+    triggerTestHook,
+  };
+};
