@@ -1,10 +1,13 @@
 @use '@experience/shared/scss/underscore' as _;
 
+/* [NiceMatrix] Align header layout with Console Topbar (64px fixed height, same padding/gap).
+ * Remove this override when Logto upstream aligns Account Center header with Console. */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: _.unit(5) _.unit(6);
+  height: 64px;
+  padding: 0 _.unit(6);
 }
 
 .left {
@@ -13,15 +16,14 @@
   gap: _.unit(4);
 }
 
-/* [NiceMatrix] Match logo height with Console Topbar (28px). Remove when Logto upstream aligns. */
 .logo {
-  display: block;
+  width: auto;
   height: 28px;
 }
 
 .divider {
   width: 1px;
-  height: 16px;
+  height: 20px;
   background: var(--color-line-divider);
 }
 
