@@ -1,13 +1,15 @@
 @use '@experience/shared/scss/underscore' as _;
 
-/* [NiceMatrix] Align header layout with Console Topbar (64px fixed height, same padding/gap).
+/* [NiceMatrix] 1:1 match Console Topbar layout.
+ * Console source: packages/console/src/components/Topbar/index.module.scss
  * Remove this override when Logto upstream aligns Account Center header with Console. */
 .header {
+  flex: 0 0 64px;
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 64px;
   padding: 0 _.unit(6);
+  gap: _.unit(4);
 }
 
 .left {
@@ -19,16 +21,17 @@
 .logo {
   width: auto;
   height: 28px;
+  cursor: pointer;
 }
 
 .divider {
-  width: 1px;
+  border-left: 1px solid var(--color-border);
+  width: 0;
   height: 20px;
-  background: var(--color-line-divider);
 }
 
 .appName {
-  font: var(--font-title-1);
-  color: var(--color-type-primary);
+  font: var(--font-title-2);
+  color: var(--color-text);
   white-space: nowrap;
 }
