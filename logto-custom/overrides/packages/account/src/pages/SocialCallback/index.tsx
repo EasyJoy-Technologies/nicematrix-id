@@ -208,17 +208,20 @@ const SocialCallback = () => {
     t,
   ]);
 
+  // [NiceMatrix] Show loading while settings are still being fetched.
+  // Without this guard the first render (accountCenterSettings === undefined)
+  // would briefly flash the "feature_not_enabled" error page.
+  if (!accountCenterSettings || !experienceSettings) {
+    return <GlobalLoading />;
+  }
+
   if (
-    !accountCenterSettings?.enabled ||
+    !accountCenterSettings.enabled ||
     accountCenterSettings.fields.social !== AccountCenterControlValue.Edit
   ) {
     return (
       <ErrorPage titleKey="error.something_went_wrong" messageKey="error.feature_not_enabled" />
     );
-  }
-
-  if (!experienceSettings) {
-    return <GlobalLoading />;
   }
 
   if (!connectorId || !connector) {
