@@ -19,13 +19,14 @@ import PageContext from '@ac/Providers/PageContextProvider/PageContext';
 import { linkSocialIdentity, verifySocialVerification } from '@ac/apis/social';
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
-import { getSocialAddRoute, socialCallbackRoutePrefix } from '@ac/constants/routes';
+import { getSocialAddRoute, getSocialCallbackRoute, socialCallbackRoutePrefix } from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
 import { accountStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
 import { accountCenterBasePath } from '@ac/utils/account-center-route';
+import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
 
 /**
  * Extract connectorId from the current URL path as a fallback when useParams()
@@ -163,9 +164,17 @@ const SocialCallback = () => {
     };
 
     const completeCallback = async () => {
+      // [NiceMatrix] Include redirectUri in connectorData for connectors that need it
+      // for token exchange (e.g., QQ). Must match the redirectUri used in the authorization request.
+      const callbackOrigin = getSocialCallbackOriginOverride(connectorId) ?? window.location.origin;
+      const redirectUri = `${callbackOrigin}${accountCenterBasePath}${getSocialCallbackRoute(connectorId)}`;
+
       const [verifyError] = await verifySocialVerificationRequest({
         verificationRecordId: storedSocialFlow.verificationRecordId,
-        connectorData: Object.fromEntries(searchParameters.entries()),
+        connectorData: {
+          redirectUri,
+          ...Object.fromEntries(searchParameters.entries()),
+        },
       });
 
       if (verifyError) {
