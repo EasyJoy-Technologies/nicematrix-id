@@ -17,7 +17,17 @@ const QQ_CONNECTOR_ID = 'xelhp9uuatn4qmf4pb7hb';
 const QQ_CALLBACK_ORIGIN = 'https://id.ej-mobile.cn';
 
 /**
- * Returns the correct callback URI for a social connector.
+ * Returns the override origin for a connector, or undefined if no override needed.
+ * Used by Account Center where the callback path differs from Experience.
+ */
+export const getSocialCallbackOriginOverride = (
+  connectorId: string
+): string | undefined => {
+  return connectorId === QQ_CONNECTOR_ID ? QQ_CALLBACK_ORIGIN : undefined;
+};
+
+/**
+ * Returns the correct callback URI for a social connector (Experience flow).
  * For QQ, uses the ICP-registered domain; for all others, uses current origin.
  */
 export const getSocialCallbackUri = (connectorId: string): string => {
