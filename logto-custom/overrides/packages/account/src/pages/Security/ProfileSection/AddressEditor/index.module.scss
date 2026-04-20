@@ -1,0 +1,95 @@
+@use '@experience/shared/scss/underscore' as _;
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-bg-float);
+  border-radius: 16px;
+  padding: _.unit(6);
+  width: min(440px, calc(100vw - 32px));
+  outline: none;
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(4);
+  box-shadow: var(--shadow-menu);
+}
+
+.title {
+  font: var(--font-title-3);
+  color: var(--color-type-primary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1);
+}
+
+.label {
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.textarea {
+  padding: _.unit(2.5) _.unit(3);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-layer-1);
+  color: var(--color-type-primary);
+  font: var(--font-body-2);
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  min-height: 88px;
+
+  &:focus {
+    border-color: var(--color-primary);
+  }
+}
+
+.error {
+  font: var(--font-body-3);
+  color: var(--color-type-error);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: _.unit(2);
+  margin-top: _.unit(2);
+}
+
+.button {
+  padding: _.unit(2.5) _.unit(5);
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font: var(--font-label-2);
+  min-width: 80px;
+}
+
+.primaryButton {
+  composes: button;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.secondaryButton {
+  composes: button;
+  background: transparent;
+  color: var(--color-type-primary);
+  border: 1px solid var(--color-border);
+}

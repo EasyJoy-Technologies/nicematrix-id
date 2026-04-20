@@ -1,0 +1,112 @@
+@use '@experience/shared/scss/underscore' as _;
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1.5);
+}
+
+.sectionTitle {
+  padding-left: _.unit(1);
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.card {
+  background: var(--color-bg-body);
+  border-radius: 12px;
+  overflow: clip;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  padding: _.unit(5) _.unit(6);
+  min-height: 64px;
+
+  & + & {
+    border-top: 1px solid var(--color-divider-default);
+  }
+}
+
+.info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  min-width: 0;
+}
+
+.name {
+  flex: 1;
+  max-width: 200px;
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.value {
+  flex: 1;
+  font: var(--font-body-2);
+  color: var(--color-type-primary);
+  word-break: break-word;
+}
+
+.valueMuted {
+  composes: value;
+  color: var(--color-type-secondary);
+}
+
+.changeButton {
+  font: var(--font-label-2);
+  color: var(--color-type-link);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    text-decoration: none;
+  }
+}
+
+.avatarRow {
+  gap: _.unit(4);
+  padding: _.unit(5) _.unit(6);
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-neutral-variant-90);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.avatarActions {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1);
+
+  & > button {
+    text-align: start;
+  }
+}
+
+.avatarHint {
+  font: var(--font-body-3);
+  color: var(--color-type-secondary);
+}
+
+.avatarRemove {
+  composes: changeButton;
+  color: var(--color-type-error);
+}
