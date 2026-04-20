@@ -72,17 +72,24 @@ const rowToResponse = (row: DeletionRequestRow) => ({
   cancelled_at: row.cancelled_at,
 });
 
-const responseGuard = z
-  .object({
-    id: z.string(),
-    status: z.string(),
-    reason: z.string().nullable(),
-    requested_at: z.date(),
-    confirmed_at: z.date().nullable(),
-    scheduled_at: z.date().nullable(),
-    cancelled_at: z.date().nullable(),
-  })
-  .nullable();
+// We wrap the optional deletion-request row in an envelope so that an
+// "empty" response is still a 200 JSON body (`{ request: null }`).
+// Returning a bare `null` would make Koa send 204 No Content, which then
+// makes `ky.json()` throw SyntaxError on the Account Center side and masks
+// the section entirely.
+const responseGuard = z.object({
+  request: z
+    .object({
+      id: z.string(),
+      status: z.string(),
+      reason: z.string().nullable(),
+      requested_at: z.date(),
+      confirmed_at: z.date().nullable(),
+      scheduled_at: z.date().nullable(),
+      cancelled_at: z.date().nullable(),
+    })
+    .nullable(),
+});
 
 export default function deletionRequestRoutes<T extends UserRouter>(
   ...[router, tenant]: RouterInitArgs<T>
@@ -115,7 +122,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
          limit 1
       `);
 
-      ctx.body = row ? rowToResponse(row) : null;
+      ctx.body = { request: row ? rowToResponse(row) : null };
       return next();
     }
   );

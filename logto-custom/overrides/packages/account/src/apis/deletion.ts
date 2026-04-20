@@ -27,9 +27,13 @@ export type CreateDeletionRequestResponse = {
 export const getDeletionRequest = async (
   accessToken: string
 ): Promise<DeletionRequest | null> => {
-  return createAuthenticatedKy(accessToken)
+  // The server wraps the optional row in `{ request: ... }` so that
+  // "no open request" is still a 200 JSON body rather than a 204 empty
+  // response (which would throw SyntaxError in `ky.json()`).
+  const body = await createAuthenticatedKy(accessToken)
     .get('/api/my-account/deletion-request')
-    .json<DeletionRequest | null>();
+    .json<{ request: DeletionRequest | null }>();
+  return body.request;
 };
 
 export const createDeletionRequest = async (
