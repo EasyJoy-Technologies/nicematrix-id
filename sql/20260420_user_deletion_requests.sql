@@ -77,3 +77,20 @@ CREATE POLICY user_deletion_requests_tenant_id ON user_deletion_requests
 CREATE POLICY user_deletion_requests_modification ON user_deletion_requests
   AS PERMISSIVE
   USING (true);
+
+-- Grant table permissions to each tenant role. Logto core connects as the
+-- tenant role (e.g. `logto_tenant_logto`), not as the `logto` owner; RLS
+-- alone is not enough — without these grants, queries fail with
+-- `permission denied for table user_deletion_requests`.
+DO $$
+DECLARE
+  role_name text;
+BEGIN
+  FOR role_name IN SELECT db_user FROM tenants WHERE db_user IS NOT NULL
+  LOOP
+    EXECUTE format(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON user_deletion_requests TO %I',
+      role_name
+    );
+  END LOOP;
+END $$;
