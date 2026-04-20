@@ -21,6 +21,7 @@ import type { UserRouter, RouterInitArgs } from '../types.js';
 
 import { accountApiPrefix } from './constants.js';
 import avatarRoutes from './avatar.js';
+import deletionRequestRoutes from './deletion-request.js';
 import emailAndPhoneRoutes from './email-and-phone.js';
 import accountGrantRoutes from './grants.js';
 import identitiesRoutes from './identities.js';
@@ -292,4 +293,5 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
   accountSessionRoutes(...args);
   accountGrantRoutes(...args);
   avatarRoutes(...args);
+  deletionRequestRoutes(...args);
 }

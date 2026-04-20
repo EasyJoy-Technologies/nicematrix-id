@@ -14,6 +14,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
+    # Expose Logto DB to localhost so the NiceMatrix backend
+    # (a systemd node process on the same host) can read
+    # `user_deletion_requests` for the account-deletion cron.
+    ports:
+      - "127.0.0.1:15433:${POSTGRES_PORT}"
 
   logto:
     build:
