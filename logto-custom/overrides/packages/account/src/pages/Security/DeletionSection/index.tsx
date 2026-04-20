@@ -107,7 +107,11 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
 
   const refresh = useCallback(async () => {
     const [err, data] = await getRequest();
+    // Always mark as loaded, even on error, so the Danger zone is visible.
+    // Hiding the section on any transient/permission failure would look like
+    // the feature is missing entirely.
     if (err) {
+      setIsLoaded(true);
       return;
     }
     setCurrentRequest(data ?? null);

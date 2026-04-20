@@ -95,14 +95,13 @@ export default function deletionRequestRoutes<T extends UserRouter>(
     `${accountApiPrefix}/deletion-request`,
     koaGuard({
       response: responseGuard,
-      status: [200, 401],
+      status: [200],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
-      assertThat(
-        scopes.has(UserScope.Profile),
-        new RequestError({ code: 'auth.unauthorized', status: 401 })
-      );
+      // GET is a read-only self-query: any authenticated user can read their own
+      // pending deletion request without needing the `profile` scope. This avoids
+      // a 401 loop that would leave the DeletionSection invisible in the UI.
+      const { id: userId } = ctx.auth;
 
       const row = await pool.maybeOne<DeletionRequestRow>(sql`
         select id, tenant_id, user_id, status, reason,

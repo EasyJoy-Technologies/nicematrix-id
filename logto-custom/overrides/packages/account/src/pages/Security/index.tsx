@@ -59,8 +59,8 @@ const Security = () => {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <div className={styles.title}>{t('account_center.page.security_title')}</div>
-        <div className={styles.description}>{t('account_center.page.security_description')}</div>
+        <div className={styles.title}>{t('profile_section.page_title')}</div>
+        <div className={styles.description}>{t('profile_section.page_description')}</div>
       </div>
       <div className={styles.content}>
         <ProfileSection />

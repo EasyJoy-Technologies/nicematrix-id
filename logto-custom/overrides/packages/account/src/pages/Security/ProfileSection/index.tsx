@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 import PageContext from '@ac/Providers/PageContextProvider/PageContext';
 import useApi from '@ac/hooks/use-api';
-import { updateProfile } from '@ac/apis/profile';
+import { updateName, updateProfile } from '@ac/apis/profile';
 import { injectProfilePhrases } from '@ac/i18n/profile-phrases';
 
 import AddressEditor from './AddressEditor';
@@ -25,6 +25,7 @@ import styles from './index.module.scss';
 
 type ActiveEditor =
   | null
+  | 'name'
   | 'familyName'
   | 'givenName'
   | 'nickname'
@@ -44,7 +45,10 @@ const ProfileSection = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
 
+  const patchName = useApi(updateName, { silent: true });
+
   const profile = (userInfo?.profile ?? {}) as Partial<UserProfile>;
+  const displayName = userInfo?.name ?? undefined;
 
   const profileControl = accountCenterSettings?.fields.profile;
   const avatarControl = accountCenterSettings?.fields.avatar;
@@ -84,6 +88,21 @@ const ProfileSection = () => {
     setIsSubmitting(true);
     setErrorMessage(undefined);
     const [error] = await patchProfile(payload);
+    setIsSubmitting(false);
+    if (error) {
+      setErrorMessage(t('profile_section.save_failed'));
+      return;
+    }
+    await refreshUserInfo();
+    setToast(t('profile_section.saved'));
+    close();
+  };
+
+  const submitName = async (value: string) => {
+    setIsSubmitting(true);
+    setErrorMessage(undefined);
+    const trimmed = value.trim();
+    const [error] = await patchName(trimmed || null);
     setIsSubmitting(false);
     if (error) {
       setErrorMessage(t('profile_section.save_failed'));
@@ -135,6 +154,7 @@ const ProfileSection = () => {
 
         {isProfileVisible && (
           <>
+            {renderRow('name', t('profile_section.display_name'), displayName)}
             {renderRow('familyName', t('profile_section.family_name'), profile.familyName)}
             {renderRow('givenName', t('profile_section.given_name'), profile.givenName)}
             {renderRow('nickname', t('profile_section.nickname'), profile.nickname)}
@@ -145,6 +165,16 @@ const ProfileSection = () => {
         )}
       </div>
 
+      <TextFieldEditor
+        isOpen={activeEditor === 'name'}
+        title={t('profile_section.display_name')}
+        label={t('profile_section.display_name')}
+        initialValue={displayName ?? ''}
+        isSubmitting={isSubmitting}
+        errorMessage={errorMessage}
+        onCancel={close}
+        onSubmit={submitName}
+      />
       <TextFieldEditor
         isOpen={activeEditor === 'familyName'}
         title={t('profile_section.family_name')}

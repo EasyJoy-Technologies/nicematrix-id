@@ -64,3 +64,16 @@ DROP TRIGGER IF EXISTS trg_user_deletion_requests_updated
 CREATE TRIGGER trg_user_deletion_requests_updated
   BEFORE UPDATE ON user_deletion_requests
   FOR EACH ROW EXECUTE FUNCTION user_deletion_requests__touch_updated_at();
+
+-- RLS — Logto enforces that every business table has row-level security,
+-- scoped to the current tenant (matched by the Postgres role that the
+-- Logto process is connecting as, via the `tenants.db_user` column).
+ALTER TABLE user_deletion_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY user_deletion_requests_tenant_id ON user_deletion_requests
+  AS RESTRICTIVE
+  USING (
+    tenant_id = (SELECT id FROM tenants WHERE db_user = CURRENT_USER)
+  );
+CREATE POLICY user_deletion_requests_modification ON user_deletion_requests
+  AS PERMISSIVE
+  USING (true);

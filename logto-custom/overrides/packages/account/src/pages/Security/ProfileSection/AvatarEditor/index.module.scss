@@ -4,41 +4,90 @@
   display: none;
 }
 
-.row {
+// New centred layout: large clickable avatar above, change link + hint below.
+.centered {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: _.unit(4);
-  padding: _.unit(5) _.unit(6);
+  gap: _.unit(2);
+  padding: _.unit(6) _.unit(6) _.unit(5);
+}
+
+.avatarWrapper {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: none;
+
+  &:hover .removeBadge,
+  &:focus-visible .removeBadge {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 3px var(--color-focused-variant);
+  }
 }
 
 .avatar {
-  width: 64px;
-  height: 64px;
+  width: 128px;
+  height: 128px;
   border-radius: 50%;
   background: var(--color-neutral-variant-90);
   object-fit: cover;
-  flex-shrink: 0;
+  display: block;
+  border: 2px solid var(--color-layer-1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: filter 0.15s ease;
+
+  .avatarWrapper:hover & {
+    filter: brightness(0.92);
+  }
 }
 
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: _.unit(1);
-  align-items: flex-start;
+.removeBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--color-layer-1);
+  background: var(--color-type-error);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+
+  &:hover {
+    filter: brightness(1.05);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6 !important;
+  }
 }
 
-.hint {
-  font: var(--font-body-3);
-  color: var(--color-type-secondary);
-}
-
-.linkButton {
+.changeLink {
   font: var(--font-label-2);
   color: var(--color-type-link);
   cursor: pointer;
   background: none;
   border: none;
-  padding: _.unit(0.5) 0;
+  padding: _.unit(0.5) _.unit(1);
+  margin-top: _.unit(1);
 
   &:hover {
     text-decoration: underline;
@@ -51,7 +100,72 @@
   }
 }
 
-.linkDangerButton {
-  composes: linkButton;
-  color: var(--color-type-error);
+.hint {
+  font: var(--font-body-3);
+  color: var(--color-type-secondary);
+  text-align: center;
+}
+
+// ── Confirm modal ──────────────────────────────────────────────────────────
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.confirmBox {
+  background: var(--color-layer-1);
+  border-radius: 12px;
+  padding: _.unit(6);
+  max-width: 400px;
+  width: calc(100% - #{_.unit(8)});
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.confirmTitle {
+  font: var(--font-title-2);
+  margin-bottom: _.unit(2);
+}
+
+.confirmBody {
+  font: var(--font-body-2);
+  color: var(--color-type-secondary);
+  margin-bottom: _.unit(5);
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: _.unit(2);
+}
+
+.confirmCancel,
+.confirmDelete {
+  font: var(--font-label-2);
+  padding: _.unit(2) _.unit(4);
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-type-primary);
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.confirmDelete {
+  background: var(--color-type-error);
+  border-color: var(--color-type-error);
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
 }

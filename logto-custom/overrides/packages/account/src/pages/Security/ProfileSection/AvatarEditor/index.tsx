@@ -1,8 +1,10 @@
 /**
- * [NiceMatrix] Avatar row: shows current avatar and lets the user upload or
- * remove it. Upload is a single-step multipart POST to the NiceMatrix
- * `/api/my-account/avatar` override; no cropping UI for now (server resizes
- * are cheap on R2 via Cloudflare Images if we want later).
+ * [NiceMatrix] Avatar row: large centered avatar with hover-based remove `×`
+ * (with confirm modal) and click-to-upload. A "Change avatar" link lives below
+ * the avatar together with the supported formats hint.
+ *
+ * Upload is a single-step multipart POST to the NiceMatrix
+ * `/api/my-account/avatar` override; no cropping UI.
  */
 import { useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +30,7 @@ const AvatarEditor = () => {
   const { t } = useTranslation();
   const { userInfo, refreshUserInfo, setToast } = useContext(PageContext);
   const [isBusy, setIsBusy] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useApi(uploadAvatar, { silent: true });
   const clear = useApi(deleteAvatar, { silent: true });
@@ -36,6 +39,9 @@ const AvatarEditor = () => {
   const hasAvatar = Boolean(userInfo?.avatar);
 
   const handlePickFile = () => {
+    if (isBusy) {
+      return;
+    }
     inputRef.current?.click();
   };
 
@@ -68,6 +74,7 @@ const AvatarEditor = () => {
   };
 
   const handleRemove = async () => {
+    setIsConfirmOpen(false);
     setIsBusy(true);
     const [error] = await clear();
     setIsBusy(false);
@@ -76,33 +83,59 @@ const AvatarEditor = () => {
       return;
     }
     await refreshUserInfo();
-    setToast(t('profile_section.saved'));
+    setToast(t('profile_section.removed'));
+  };
+
+  const handleRemoveClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (isBusy) {
+      return;
+    }
+    setIsConfirmOpen(true);
   };
 
   return (
-    <div className={styles.row}>
-      <img className={styles.avatar} src={avatarUrl} alt={t('profile_section.avatar')} />
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.linkButton}
-          disabled={isBusy}
-          onClick={handlePickFile}
-        >
-          {t('profile_section.upload_avatar')}
-        </button>
+    <div className={styles.centered}>
+      <div
+        className={styles.avatarWrapper}
+        role="button"
+        tabIndex={0}
+        onClick={handlePickFile}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handlePickFile();
+          }
+        }}
+        aria-label={t('profile_section.upload_avatar')}
+      >
+        <img
+          className={styles.avatar}
+          src={avatarUrl}
+          alt={t('profile_section.avatar')}
+        />
         {hasAvatar && (
           <button
             type="button"
-            className={styles.linkDangerButton}
+            className={styles.removeBadge}
             disabled={isBusy}
-            onClick={handleRemove}
+            onClick={handleRemoveClick}
+            aria-label={t('profile_section.remove_avatar')}
+            title={t('profile_section.remove_avatar')}
           >
-            {t('profile_section.remove_avatar')}
+            ×
           </button>
         )}
-        <div className={styles.hint}>{t('profile_section.avatar_hint')}</div>
       </div>
+      <button
+        type="button"
+        className={styles.changeLink}
+        disabled={isBusy}
+        onClick={handlePickFile}
+      >
+        {t('profile_section.change_avatar')}
+      </button>
+      <div className={styles.hint}>{t('profile_section.avatar_supported_formats')}</div>
       <input
         ref={inputRef}
         className={styles.hidden}
@@ -110,6 +143,47 @@ const AvatarEditor = () => {
         accept="image/png,image/jpeg,image/webp,image/gif"
         onChange={handleFileChange}
       />
+
+      {isConfirmOpen && (
+        <div
+          className={styles.confirmOverlay}
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsConfirmOpen(false)}
+        >
+          <div
+            className={styles.confirmBox}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.confirmTitle}>
+              {t('profile_section.remove_avatar_confirm_title')}
+            </div>
+            <div className={styles.confirmBody}>
+              {t('profile_section.remove_avatar_confirm_body')}
+            </div>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.confirmCancel}
+                onClick={() => setIsConfirmOpen(false)}
+                disabled={isBusy}
+              >
+                {t('profile_section.cancel')}
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDelete}
+                onClick={() => {
+                  void handleRemove();
+                }}
+                disabled={isBusy}
+              >
+                {t('profile_section.remove_avatar_confirm_ok')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
