@@ -3,6 +3,8 @@
 > 范围：本次仅处理 **NiceMatrix ID / Logto**
 > 
 > 不包含：`api.nicematrix.com`、`m.nicematrix.com`、backend/admin-web 正式部署
+>
+> 可直接执行的命令清单见：`docs/production-execution-checklist-20260420.md`
 
 ---
 
