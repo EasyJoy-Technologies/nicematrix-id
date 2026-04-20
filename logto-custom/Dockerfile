@@ -15,7 +15,8 @@ COPY logto-custom/overrides/ /tmp/overrides/
 RUN if [ -d /tmp/overrides ]; then rsync -a /tmp/overrides/ /etc/logto/; fi
 
 # Build args aligned with upstream Dockerfile behavior
-ARG dev_features_enabled
+# Default to "true" — NiceMatrix always needs dev features (Account Center, social linking, etc.)
+ARG dev_features_enabled=true
 ENV DEV_FEATURES_ENABLED=${dev_features_enabled}
 
 ARG applicationinsights_connection_string

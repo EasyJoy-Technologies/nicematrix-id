@@ -16,11 +16,10 @@
 import { Theme } from '@logto/schemas';
 import { useEffect, useRef } from 'react';
 
-import NiceMatrixLogo from '@/shared/assets/icons/nicematrix/nicematrix-logo.svg?react';
-
 import styles from './index.module.scss';
 
 const brandUrl = 'https://www.nicematrix.com';
+const brandLogoUrl = 'https://m.nicematrix.com/branding/NiceMatrix-170x64.svg';
 
 const guardStyleSelector = 'style[data-logto-signature-guard="true"]';
 
@@ -35,12 +34,13 @@ const signatureGuardStyle = `
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  font: var(--font-label-2) !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
   font-weight: normal !important;
   color: var(--color-neutral-variant-60) !important;
-  padding: 4px 8px !important;
+  padding: 6px 10px !important;
   text-decoration: none !important;
-  opacity: 75% !important;
+  opacity: 100% !important;
   direction: ltr !important;
   position: relative !important;
   inset: auto !important;
@@ -53,22 +53,23 @@ const signatureGuardStyle = `
 }
 
 [data-logto-signature="secured"][data-logto-signature="secured"]:is(:hover, :active, :focus-visible) {
-  opacity: 100% !important;
+  opacity: 85% !important;
 }
 
 [data-logto-signature="secured"][data-logto-signature="secured"] [data-logto-signature-icon="static"] {
   display: block !important;
-  height: 20px !important;
-  width: 20px !important;
+  height: 32px !important;
+  width: auto !important;
 }
 
 [data-logto-signature-text] {
-  margin-inline-end: 6px !important;
+  margin-inline-end: 8px !important;
 }
 
 body.mobile [data-logto-signature="secured"][data-logto-signature="secured"] {
   color: var(--color-neutral-variant-80) !important;
-  font: var(--font-label-3) !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
 }
 `;
 
@@ -176,10 +177,12 @@ const LogtoSignature = ({ className, theme: _theme }: Props) => {
         <span data-logto-signature-text className={styles.text}>
           Powered by
         </span>
-        <NiceMatrixLogo
+        <img
           data-logto-signature-icon="static"
           className={styles.staticIcon}
-          style={{ height: 20, width: 20 }}
+          src={brandLogoUrl}
+          alt="NiceMatrix"
+          style={{ height: 32, width: 'auto' }}
         />
       </a>
     </div>

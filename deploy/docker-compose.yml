@@ -19,6 +19,8 @@ services:
     build:
       context: ..
       dockerfile: logto-custom/Dockerfile
+      args:
+        dev_features_enabled: "true"
     image: nicematrix-logto:latest
     container_name: nicematrix-logto
     depends_on:

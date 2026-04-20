@@ -126,19 +126,38 @@ const phrases = {
 
 let injected = false;
 
+const writeBundles = () => {
+  for (const [language, bundle] of Object.entries(phrases)) {
+    try {
+      i18next.addResourceBundle(
+        language,
+        'translation',
+        bundle as Record<string, unknown>,
+        true,
+        false
+      );
+    } catch {
+      // i18next not yet initialized — will retry on the next call.
+    }
+  }
+};
+
 export const injectProfilePhrases = () => {
   if (injected) {
     return;
   }
-  injected = true;
-  for (const [language, bundle] of Object.entries(phrases)) {
-    // deep-merge into existing translation namespace
-    i18next.addResourceBundle(
-      language,
-      'translation',
-      bundle as Record<string, unknown>,
-      true,
-      false
-    );
+
+  // If i18next has not been initialized yet (modules are loaded before
+  // App.tsx runs `initI18n`), defer the write until after init completes.
+  // We still set `injected` early so repeat calls are no-ops.
+  if (!i18next.isInitialized) {
+    i18next.on('initialized', writeBundles);
+    // Also on languageChanged — fallback for when init races with first render.
+    i18next.on('languageChanged', writeBundles);
+    injected = true;
+    return;
   }
+
+  injected = true;
+  writeBundles();
 };
