@@ -113,17 +113,20 @@
   }
 }
 
-// Mobile: tighter top/bottom padding so the H2 above the card sits
-// closer to the description text inside it. Without this, the gap
-// between H2 and the first text line was visibly larger than the
-// equivalent gap on Profile / Security (where an inner sub-section
-// title fills the space). Stacks info above the action.
+// Mobile: zero top padding inside the card so the H2 above the card
+// sits the same ~4px (Home .section gap) away from the first text
+// line as Profile / Security do (where the gap is filled by a leading
+// sub-section title rendered outside any card). The card surface is
+// visible (white on the page's neutral-95 background) but the text
+// inside it starts right at the card's top edge, matching the visual
+// rhythm of the surrounding sections. Side / bottom padding kept so
+// the description and Delete button still breathe.
 :global(body.mobile) {
   .row {
-    padding: _.unit(3) _.unit(4);
+    padding: 0 _.unit(4) _.unit(3);
     flex-direction: column;
     align-items: stretch;
-    gap: _.unit(3);
+    gap: _.unit(2);
   }
 
   .deleteButton {

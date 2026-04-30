@@ -222,11 +222,12 @@
     align-self: center;
   }
 
+  // Value sits on row 2, columns 1-2 only, leaving column 3 for the
+  // action button on the same row.
   .value {
-    grid-column: 1 / -1;
+    grid-column: 1 / 3;
     grid-row: 2;
     min-width: 0;
-    width: 100%;
     display: flex;
     align-items: center;
     overflow: hidden;
@@ -244,12 +245,12 @@
     white-space: nowrap;
   }
 
-  // Action buttons span both grid rows so they sit on the centre
-  // line between row 1 (icon + label) and row 2 (value), aligning
-  // visually with the value rather than the label above it.
+  // Action buttons sit on row 2, the same row as the value, so they
+  // visually pair with the value the user is reading. Row 1 (icon +
+  // label) intentionally has nothing in column 3.
   .actions {
     grid-column: 3;
-    grid-row: 1 / -1;
+    grid-row: 2;
     display: flex;
     align-items: center;
     justify-content: flex-end;
