@@ -1,7 +1,6 @@
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 
-import PageFooter from '@ac/components/PageFooter';
 import { layoutClassNames } from '@ac/constants/layout';
 
 import styles from '../Home/index.module.scss';
@@ -37,7 +36,6 @@ const Security = () => {
         <MfaSection />
         <DeletionSection />
       </div>
-      <PageFooter />
     </div>
   );
 };

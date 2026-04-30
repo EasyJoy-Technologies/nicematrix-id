@@ -1,7 +1,6 @@
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 
-import PageFooter from '@ac/components/PageFooter';
 import { layoutClassNames } from '@ac/constants/layout';
 
 import styles from '../Home/index.module.scss';
@@ -11,6 +10,8 @@ import styles from '../Home/index.module.scss';
 // 6 field editors) here. The implementation lives in `Security/ProfileSection/*`
 // from earlier versions; we keep that import path stable so the component
 // itself can be migrated in a separate refactor without affecting this layer.
+// PageFooter is intentionally omitted: our App layout uses cardMain, which
+// already has its own footer (LogtoSignature when not hidden by branding).
 import ProfileSection from '../Security/ProfileSection';
 
 const Profile = () => {
@@ -29,7 +30,6 @@ const Profile = () => {
       <div className={classNames(styles.content, layoutClassNames.pageContent)}>
         <ProfileSection />
       </div>
-      <PageFooter />
     </div>
   );
 };

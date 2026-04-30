@@ -124,19 +124,21 @@ const ProfileSection = () => {
       : t('profile_section.not_set');
     return (
       <div key={key ?? label} className={styles.row}>
-        <div className={styles.info}>
+        <div className={styles.topLine}>
           <div className={styles.name}>{label}</div>
           <div className={rawValue ? styles.value : styles.valueMuted}>{displayed}</div>
+          {isProfileEditable && (
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.changeButton}
+                onClick={() => setActiveEditor(key)}
+              >
+                {t('profile_section.change')}
+              </button>
+            </div>
+          )}
         </div>
-        {isProfileEditable && (
-          <button
-            type="button"
-            className={styles.changeButton}
-            onClick={() => setActiveEditor(key)}
-          >
-            {t('profile_section.change')}
-          </button>
-        )}
       </div>
     );
   };

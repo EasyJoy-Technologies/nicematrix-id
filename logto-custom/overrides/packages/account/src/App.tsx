@@ -3,12 +3,10 @@ import { LogtoProvider, Prompt, ReservedScope, useLogto, UserScope } from '@logt
 import { accountCenterApplicationId, ExtraParamsKey, SignInIdentifier } from '@logto/schemas';
 import classNames from 'classnames';
 import { useContext, useEffect } from 'react';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import AppBoundary from '@ac/Providers/AppBoundary';
 import LoadingContextProvider from '@ac/Providers/LoadingContextProvider';
-import PageHeader from '@ac/components/PageHeader';
-import Sidebar from '@ac/components/Sidebar';
 import { layoutClassNames } from '@ac/constants/layout';
 
 import styles from './App.module.scss';
@@ -223,40 +221,38 @@ const Main = () => {
   );
 };
 
+/**
+ * [NiceMatrix] Layout intentionally simplified back to 1.38-era visual:
+ *   - No left sidebar (Logto v1.39 added Sidebar with Profile/Security tabs;
+ *     we don't want it — single-column stack is friendlier on mobile and
+ *     consistent with our brand).
+ *   - Profile and Security routes render as cardContainer (centered card),
+ *     same as old Home page. Footer LogtoSignature visible when not hidden.
+ */
 const Layout = () => {
-  const { accountCenterSettings, experienceSettings, theme } = useContext(PageContext);
+  const { experienceSettings, theme } = useContext(PageContext);
   const hideLogtoBranding = experienceSettings?.hideLogtoBranding === true;
-  const { pathname } = useLocation();
-  const showsSecurityPage = hasVisibleSecuritySection(accountCenterSettings, experienceSettings);
-  const isSecurityFullPage = pathname === securityRoute && showsSecurityPage;
-  const isProfileFullPage = pathname === profileRoute && isDevFeaturesEnabled;
-  const isFullPage = isSecurityFullPage || isProfileFullPage;
-  const showsSidebar = isDevFeaturesEnabled && isFullPage;
 
   return (
     <div className={classNames(styles.app, layoutClassNames.app)}>
       <div
         className={classNames(
           styles.layout,
-          isFullPage && styles.fullPage,
           layoutClassNames.pageContainer
         )}
       >
-        {isFullPage && <PageHeader />}
         <div
           className={classNames(
             styles.container,
-            !isFullPage && styles.cardContainer,
-            !isFullPage && layoutClassNames.cardContainer,
-            showsSidebar && styles.withSidebar
+            styles.cardContainer,
+            layoutClassNames.cardContainer
           )}
         >
-          {showsSidebar && <Sidebar hasProfile hasSecurity={showsSecurityPage} />}
           <main
             className={classNames(
               styles.main,
-              !isFullPage && styles.cardMain,
-              isFullPage ? layoutClassNames.mainContent : layoutClassNames.cardMain
+              styles.cardMain,
+              layoutClassNames.cardMain
             )}
           >
             <ErrorBoundary>
@@ -264,7 +260,7 @@ const Layout = () => {
                 <Main />
               </LogtoErrorBoundary>
             </ErrorBoundary>
-            {!isFullPage && !hideLogtoBranding && (
+            {!hideLogtoBranding && (
               <LogtoSignature
                 className={classNames(styles.signature, layoutClassNames.signature)}
                 theme={theme}
