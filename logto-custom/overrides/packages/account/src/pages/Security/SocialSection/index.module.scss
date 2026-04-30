@@ -3,7 +3,18 @@
  * Each row already has 3 direct children (.connectorInfo, .identityInfo,
  * .actions); upstream mobile collapses them to a column stack. We keep
  * a single row by laying out a 3-col grid:
- *   [connectorInfo (logo+name)] [identityInfo, flex+wrap] [actions]
+ *   [connectorInfo (logo+name)] [identityInfo] [actions]
+ *
+ * Mobile identity text policy:
+ *   Long social-account display strings (e.g. Apple's
+ *   `*****@privaterelay.appleid.com`, very long Google display names)
+ *   used to wrap into multiple lines via `overflow-wrap: anywhere /
+ *   word-break: break-word`. That broke the row geometry and pushed
+ *   actions out of place when content was wide.
+ *   Now `.primaryText / .secondaryText / .notLinked` are single-line
+ *   with `text-overflow: ellipsis`. The user can still see the full
+ *   value via the upstream remove confirmation modal which receives
+ *   the connector name, and on tablet+ via the desktop layout.
  */
 @use '@experience/shared/scss/underscore' as _;
 
@@ -162,12 +173,14 @@
     align-items: center;
   }
 
+  // Single-line + ellipsis on overflow. Don't wrap — see header note.
   .primaryText,
   .secondaryText,
   .notLinked {
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .actions {
