@@ -3,7 +3,7 @@ import { LogtoProvider, Prompt, ReservedScope, useLogto, UserScope } from '@logt
 import { accountCenterApplicationId, ExtraParamsKey, SignInIdentifier } from '@logto/schemas';
 import classNames from 'classnames';
 import { useContext, useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AppBoundary from '@ac/Providers/AppBoundary';
 import LoadingContextProvider from '@ac/Providers/LoadingContextProvider';
@@ -54,8 +54,6 @@ import PasskeyBinding from './pages/PasskeyBinding';
 import PasskeyView from './pages/PasskeyView';
 import Password from './pages/Password';
 import Phone from './pages/Phone';
-import Profile from './pages/Profile';
-import Security from './pages/Security';
 import SocialCallback from './pages/SocialCallback';
 import SocialFlow from './pages/SocialFlow';
 import TotpBinding from './pages/TotpBinding';
@@ -68,7 +66,6 @@ import {
   handleAccountCenterRoute,
   setRouteRestore,
 } from './utils/account-center-route';
-import { hasVisibleSecuritySection } from './utils/security-page';
 import '@experience/shared/scss/normalized.scss';
 
 handleAccountCenterRoute();
@@ -164,8 +161,6 @@ const Main = () => {
     return <GlobalLoading />;
   }
 
-  const showsSecurityPage = hasVisibleSecuritySection(accountCenterSettings, experienceSettings);
-
   return (
     <Routes>
       <Route
@@ -213,8 +208,10 @@ const Main = () => {
         path={`${socialRoutePrefix}/:connectorId/remove`}
         element={<SocialFlow mode="remove" />}
       />
-      {showsSecurityPage && <Route path={securityRoute} element={<Security />} />}
-      {isDevFeaturesEnabled && <Route path={profileRoute} element={<Profile />} />}
+      {/* [NiceMatrix] /profile and /security are kept as redirects to / so
+          existing bookmarks/links keep working; the merged page is /. */}
+      <Route path={securityRoute} element={<Navigate replace to="/" />} />
+      <Route path={profileRoute} element={<Navigate replace to="/" />} />
       <Route index element={<Home />} />
       <Route path="*" element={<Home />} />
     </Routes>

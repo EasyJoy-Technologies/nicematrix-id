@@ -1,45 +1,69 @@
 /**
- * [NiceMatrix] Custom Home page for Account Center.
+ * [NiceMatrix] Account Center home (merged Profile + Security).
  *
- * Logto v1.39 stripped the Home page down to a "Page not found" ErrorPage
- * because the entire content has moved to /profile and /security routes.
- * For our users this is confusing — opening /account shows an error.
+ * Logto v1.39 split Profile and Security into separate routes with a sidebar.
+ * We don't want a sidebar — single-page stacked layout works better on
+ * mobile and matches our 1.38-era visual.
  *
- * Behavior:
- *   - If Profile is enabled (dev features + visible profile fields), redirect
- *     to /account/profile.
- *   - Else if Security has at least one visible section, redirect to
- *     /account/security.
- *   - Else fall back to upstream's ErrorPage (correctly indicates no content).
+ * Layout:
+ *   <h1>Account Center</h1>
+ *     <h2>Profile</h2>
+ *       ProfileSection (avatar + name/birthdate/gender/address)
+ *     <h2>Security</h2>
+ *       Username, Email/Phone, Password, Social, MFA, Deletion
+ *
+ * /account/profile and /account/security are kept as redirects (App.tsx)
+ * so existing bookmarks still work.
  */
-import { useContext } from 'react';
-import { Navigate } from 'react-router-dom';
+import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
 
-import ErrorPage from '@ac/components/ErrorPage';
-import PageContext from '@ac/Providers/PageContextProvider/PageContext';
-import { isDevFeaturesEnabled } from '@ac/constants/env';
-import { profileRoute, securityRoute } from '@ac/constants/routes';
-import { hasVisibleSecuritySection } from '@ac/utils/security-page';
+import { layoutClassNames } from '@ac/constants/layout';
+
+import DeletionSection from '../Security/DeletionSection';
+import EmailPhoneSection from '../Security/EmailPhoneSection';
+import MfaSection from '../Security/MfaSection';
+import PasswordSection from '../Security/PasswordSection';
+import ProfileSection from '../Security/ProfileSection';
+import SocialSection from '../Security/SocialSection';
+import UsernameSection from '../Security/UsernameSection';
+
+import styles from './index.module.scss';
 
 const Home = () => {
-  const { accountCenterSettings, experienceSettings } = useContext(PageContext);
-
-  const showsSecurityPage = hasVisibleSecuritySection(accountCenterSettings, experienceSettings);
-  const showsProfilePage = isDevFeaturesEnabled;
-
-  if (showsProfilePage) {
-    return <Navigate replace to={profileRoute} />;
-  }
-
-  if (showsSecurityPage) {
-    return <Navigate replace to={securityRoute} />;
-  }
+  const { t } = useTranslation();
 
   return (
-    <ErrorPage
-      titleKey="account_center.home.title"
-      messageKey="account_center.home.description"
-    />
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <div className={classNames(styles.title, layoutClassNames.pageTitle)}>
+          {t('account_center.page.title')}
+        </div>
+      </div>
+
+      <section className={classNames(styles.section, layoutClassNames.pageContent)}>
+        <h2 className={styles.sectionHeading}>
+          {t('account_center.page.profile_title')}
+        </h2>
+        <div className={styles.sectionBody}>
+          <ProfileSection />
+        </div>
+      </section>
+
+      <section className={classNames(styles.section, layoutClassNames.pageContent)}>
+        <h2 className={styles.sectionHeading}>
+          {t('account_center.page.security_title')}
+        </h2>
+        <div className={styles.sectionBody}>
+          <UsernameSection />
+          <EmailPhoneSection />
+          <PasswordSection />
+          <SocialSection />
+          <MfaSection />
+          <DeletionSection />
+        </div>
+      </section>
+    </div>
   );
 };
 

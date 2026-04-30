@@ -1,0 +1,64 @@
+/**
+ * [NiceMatrix] Home (merged Account Center) layout.
+ * Desktop: 760px centered card with H1 + 2 sections.
+ * Mobile (body.mobile): full-bleed, smaller paddings, label/value stacks.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(6);
+}
+
+.header {
+  margin-bottom: _.unit(2);
+}
+
+.title {
+  font: var(--font-title-1);
+  color: var(--color-type-primary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(3);
+}
+
+.sectionHeading {
+  font: var(--font-title-3);
+  color: var(--color-type-primary);
+  margin: 0;
+  padding-left: _.unit(1);
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(5);
+}
+
+:global(body.mobile) {
+  .container {
+    gap: _.unit(5);
+  }
+
+  .header {
+    margin-bottom: _.unit(1);
+  }
+
+  .title {
+    font: var(--font-title-2);
+  }
+
+  .sectionHeading {
+    font: var(--font-title-3);
+    padding-left: 0;
+  }
+
+  .sectionBody {
+    gap: _.unit(4);
+  }
+}
