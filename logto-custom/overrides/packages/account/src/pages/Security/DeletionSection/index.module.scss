@@ -113,11 +113,14 @@
   }
 }
 
-// Mobile: padding aligns with upstream rows' _.unit(4) fallback. Stack
-// info above the action (action stays bottom-right).
+// Mobile: tighter top/bottom padding so the H2 above the card sits
+// closer to the description text inside it. Without this, the gap
+// between H2 and the first text line was visibly larger than the
+// equivalent gap on Profile / Security (where an inner sub-section
+// title fills the space). Stacks info above the action.
 :global(body.mobile) {
   .row {
-    padding: _.unit(4);
+    padding: _.unit(3) _.unit(4);
     flex-direction: column;
     align-items: stretch;
     gap: _.unit(3);

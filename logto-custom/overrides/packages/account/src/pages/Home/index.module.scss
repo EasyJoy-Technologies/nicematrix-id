@@ -24,11 +24,13 @@
 .section {
   display: flex;
   flex-direction: column;
-  // 8px between H2 and the first inner element. Tight enough that
-  // sections like Delete Account (H2 directly above a card, no inner
-  // sub-title) don't look orphaned, while still visually grouping the
-  // H2 with the content below it on Profile / Security.
-  gap: _.unit(2);
+  // 4px between H2 and the first inner element. The H2 reads as a
+  // tight label for the content immediately below it, with no
+  // visible breathing room that would suggest a separate region.
+  // Required so sections without an inner sub-title (Delete Account)
+  // don't look orphaned next to sections that have one (Profile /
+  // Security).
+  gap: _.unit(1);
 }
 
 .sectionHeading {

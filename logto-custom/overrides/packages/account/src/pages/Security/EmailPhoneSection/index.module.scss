@@ -180,9 +180,12 @@
     align-self: center;
   }
 
+  // Action buttons span both grid rows so they sit on the centre
+  // line between row 1 (icon + label) and row 2 (value), aligning
+  // visually with the value rather than the label above it.
   .actions {
     grid-column: 3;
-    grid-row: 1;
+    grid-row: 1 / -1;
     display: flex;
     align-items: center;
     justify-content: flex-end;
