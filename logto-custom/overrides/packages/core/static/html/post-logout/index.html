@@ -1,0 +1,147 @@
+<!-- https://github.com/panva/node-oidc-provider/blob/main/docs/README.md#logoutsource -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="./favicon.ico" />
+  <title>Sign Out</title>
+</head>
+<body>
+<div class="viewBox">
+  <div class="container">
+    <div class="placeHolder"></div>
+    <main>
+      <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" id="success">
+        <circle cx="39.9999" cy="40" r="26.6667" fill="#68BE6C"/>
+        <g filter="url(#filter0_d_694_17138)">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M25.8563 36.6664C24.5545 37.9682 24.5545 40.0787 25.8563 41.3805L35.2834 50.8075L35.2844 50.8085C36.5861 52.1103 38.6967 52.1103 39.9984 50.8086C40.0217 50.7853 40.0445 50.7618 40.067 50.738L54.1396 36.6654C55.4413 35.3637 55.4413 33.2531 54.1396 31.9514C52.8378 30.6496 50.7273 30.6496 49.4255 31.9514L37.6404 43.7365L30.5703 36.6664C29.2686 35.3647 27.158 35.3647 25.8563 36.6664Z" fill="url(#paint0_linear_694_17138)"/>
+        </g>
+        <defs>
+        <filter id="filter0_d_694_17138" x="19.8799" y="27.6417" width="40.236" height="30.8098" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+        <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+        <feOffset dy="1.66667"/>
+        <feGaussianBlur stdDeviation="2.5"/>
+        <feComposite in2="hardAlpha" operator="out"/>
+        <feColorMatrix type="matrix" values="0 0 0 0 0.209219 0 0 0 0 0.4875 0 0 0 0 0.221061 0 0 0 0.1 0"/>
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_694_17138"/>
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_694_17138" result="shape"/>
+        </filter>
+        <linearGradient id="paint0_linear_694_17138" x1="47.4984" y1="27.5" x2="33.3318" y2="50.8333" gradientUnits="userSpaceOnUse">
+        <stop stop-color="white"/>
+        <stop offset="1" stop-color="#E9F2E9"/>
+        </linearGradient>
+        </defs>
+      </svg>
+      <div class="message">${message}</div>
+      <div class="signature">
+        Powered by
+        <a href="https://www.nicematrix.com" target="_blank" rel="noopener" aria-label="Powered By NiceMatrix">
+          <img src="https://m.nicematrix.com/branding/NiceMatrix-170x64.svg" alt="NiceMatrix" />
+        </a>
+      </div>
+    </main>
+    <div class="placeHolder"></div>
+</body>
+  </div>
+</div>
+<style>
+  body {
+    background-color: #e5e1ec;
+    font-family: -apple-system,
+    system-ui,
+    'BlinkMacSystemFont',
+    'Segoe UI',
+    'Roboto',
+    'Arial',
+    sans-serif;
+    color: #191C1D
+  }
+
+  .viewBox {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+  }
+
+  .container {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .message {
+    margin-top: 4px;
+    font-size: 18px/26px;
+    font-weight: 600;
+  }
+
+  .signature {
+    display: flex;
+    align-items: center;
+    margin-top: 20px;
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 500;
+    color: #928F9A;
+  }
+
+  .signature a {
+    margin-inline-start: 6px;
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    text-decoration: none;
+  }
+
+  .signature a:hover {
+    opacity: 0.85;
+  }
+
+  .signature img {
+    height: 32px;
+    width: auto;
+    display: block;
+  }
+
+  .placeHolder {
+    flex: 1;
+    min-height: 20px;
+  }
+
+  main {
+    position: relative;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 480px) {
+    main {
+      flex: 1;
+      align-self: stretch;
+      padding: 16px 20px;
+      position: relative;
+    }
+
+    .placeHolder {
+      display: none;
+    }
+  }
+
+  @media (min-width: 480px) {
+    main {
+      width: 640px;
+      min-height: 640px;
+      padding: 36px 24px;
+      border-radius: 16px;
+      box-shadow:  0 4px 8px rgba(0, 0, 0, 2%);
+    }
+  }
+</style>
+</html>
