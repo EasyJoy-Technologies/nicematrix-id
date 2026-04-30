@@ -3,11 +3,16 @@
  * Lets the user edit avatar, family/given name, nickname, birthdate, gender
  * and (formatted) address without leaving the page.
  *
- * Visual mirrors upstream Security row sections:
- *   - card with rounded corners
- *   - each row = grid (icon | label | value | action)
+ * Visual:
+ *   - card with rounded corners (matches upstream Security cards)
+ *   - each row = grid (label | value | action) on desktop
  *   - row dividers between adjacent rows
- *   - mobile: column stack with icon+label on top line, value below
+ *   - mobile: column stack — top line (label + Change button), value below
+ *
+ * No leading icons per row: we don't have a distinct icon for every Profile
+ * field, and using the same icon for all fields was rejected as visually
+ * cheap. Plain rows match upstream UsernameSection / PasswordSection
+ * (which also have no icon) so the overall page stays consistent.
  *
  * All edits go directly to Logto's `/api/my-account` + `/api/my-account/profile`
  * endpoints (plus our `/api/my-account/avatar` override). No NiceMatrix
@@ -19,7 +24,6 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import PageContext from '@ac/Providers/PageContextProvider/PageContext';
-import ProfileIcon from '@ac/assets/icons/profile.svg?react';
 import { layoutClassNames } from '@ac/constants/layout';
 import useApi from '@ac/hooks/use-api';
 import { updateName, updateProfile } from '@ac/apis/profile';
@@ -49,12 +53,11 @@ const ProfileSection = () => {
   const { t } = useTranslation();
   const { userInfo, refreshUserInfo, accountCenterSettings, setToast } = useContext(PageContext);
   const patchProfile = useApi(updateProfile, { silent: true });
+  const patchName = useApi(updateName, { silent: true });
 
   const [activeEditor, setActiveEditor] = useState<ActiveEditor>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
-
-  const patchName = useApi(updateName, { silent: true });
 
   const profile = (userInfo?.profile ?? {}) as Partial<UserProfile>;
   const displayName = userInfo?.name ?? undefined;
@@ -133,24 +136,19 @@ const ProfileSection = () => {
       : t('profile_section.not_set');
     return (
       <div key={key ?? label} className={classNames(styles.row, layoutClassNames.row)}>
-        <div className={styles.topLine}>
-          <div className={styles.iconWrap}>
-            <ProfileIcon className={styles.icon} />
+        <div className={styles.label}>{label}</div>
+        <div className={rawValue ? styles.value : styles.valueMuted}>{displayed}</div>
+        {isProfileEditable && (
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.changeButton}
+              onClick={() => setActiveEditor(key)}
+            >
+              {t('profile_section.change')}
+            </button>
           </div>
-          <div className={styles.title}>{label}</div>
-          <div className={rawValue ? styles.value : styles.valueMuted}>{displayed}</div>
-          {isProfileEditable && (
-            <div className={styles.actions}>
-              <button
-                type="button"
-                className={styles.changeButton}
-                onClick={() => setActiveEditor(key)}
-              >
-                {t('profile_section.change')}
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     );
   };

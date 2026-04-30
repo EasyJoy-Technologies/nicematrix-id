@@ -197,10 +197,13 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
       {hasOpenRequest && currentRequest && (
         <DeletionBanner request={currentRequest} onCancel={handleCancel} />
       )}
+      {/*
+        [NiceMatrix] sectionTitle ("Dangerous zone") removed: the outer
+        Home page already renders an H2 "Delete Account" above this,
+        so an inner red title produces a duplicate heading. Spacing
+        between the H2 and the card now matches Security → Username.
+      */}
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>
-          {t('account_center.deletion.section_title')}
-        </div>
         <div className={styles.card}>
           <div className={styles.row}>
             <div className={styles.info}>
