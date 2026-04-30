@@ -99,7 +99,9 @@
     flex: 1;
     width: auto;
     max-width: none;
-    padding: _.unit(4) _.unit(5);
+    /* Tighter side padding on mobile so rows have more horizontal room
+       for icon+label+actions to stay on one line. */
+    padding: _.unit(3) _.unit(2);
     position: relative;
     background: var(--color-bg-body);
   }

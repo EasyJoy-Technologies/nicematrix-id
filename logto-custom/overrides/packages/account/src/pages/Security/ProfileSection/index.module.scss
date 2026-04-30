@@ -1,21 +1,17 @@
-@use '@experience/shared/scss/underscore' as _;
-
 /**
- * [NiceMatrix] ProfileSection layout, aligned with v1.39 Security/* section
- * styling (grid-based desktop row + mobile-stacked column). Without this
- * mobile block the values get crushed on phones.
+ * [NiceMatrix] ProfileSection visual mirrors upstream Security row sections
+ * (EmailPhoneSection in particular):
+ *   - card with rounded corners
+ *   - rows in a grid: [icon|label] | value | actions
+ *   - rows separated by 1px divider
+ *   - mobile: stacked, with icon+label on top and value below
  */
+@use '@experience/shared/scss/underscore' as _;
 
 .section {
   display: flex;
   flex-direction: column;
   gap: _.unit(1.5);
-}
-
-.sectionTitle {
-  padding-left: _.unit(1);
-  font: var(--font-label-2);
-  color: var(--color-type-primary);
 }
 
 .card {
@@ -33,8 +29,8 @@
   padding: _.unit(5) _.unit(6);
   min-height: 64px;
 
-  & + & {
-    border-top: 1px solid var(--color-divider-default);
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--color-line-divider);
   }
 }
 
@@ -42,9 +38,27 @@
   display: contents;
 }
 
-.name {
+// Icon and title share grid column 1, mirroring upstream EmailPhoneSection.
+.iconWrap {
   grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  flex-shrink: 0;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-type-primary);
+}
+
+.title {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
+  padding-left: calc(20px + #{_.unit(4)});
   font: var(--font-label-2);
   color: var(--color-type-primary);
 }
@@ -59,7 +73,9 @@
 }
 
 .valueMuted {
-  composes: value;
+  grid-column: 2;
+  min-width: 0;
+  font: var(--font-body-2);
   color: var(--color-type-secondary);
 }
 
@@ -83,105 +99,53 @@
   &:hover {
     text-decoration: underline;
   }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    text-decoration: none;
-  }
 }
 
-/* Avatar row uses a dedicated layout — image left, name + helper text middle,
-   actions right. On desktop only; mobile stacks naturally. */
-.avatarRow {
-  display: flex;
-  align-items: center;
-  gap: _.unit(4);
-  padding: _.unit(5) _.unit(6);
-  min-height: 64px;
-
-  & + .row {
-    border-top: 1px solid var(--color-divider-default);
-  }
-}
-
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--color-neutral-variant-90);
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.avatarActions {
-  display: flex;
-  flex-direction: column;
-  gap: _.unit(1);
-  flex: 1;
-
-  & > button {
-    text-align: start;
-  }
-}
-
-.avatarHint {
-  font: var(--font-body-3);
-  color: var(--color-type-secondary);
-}
-
-.avatarRemove {
-  composes: changeButton;
-  color: var(--color-type-error);
-}
-
-/* Mobile (handled by Logto setting body.mobile class on viewports < 600px). */
 :global(body.mobile) {
-  .sectionTitle {
-    padding-left: 0;
-  }
-
   .row {
     display: flex;
     min-height: 0;
     flex-direction: column;
     align-items: stretch;
     gap: _.unit(1);
-    padding: _.unit(4);
+    padding: _.unit(3) _.unit(3);
   }
 
   .topLine {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: _.unit(3);
+    gap: _.unit(2);
     width: 100%;
+    flex-wrap: nowrap;
   }
 
-  .name,
-  .value {
-    width: 100%;
+  .iconWrap {
+    flex-shrink: 0;
   }
 
-  .value {
-    overflow-wrap: anywhere;
-    word-break: break-word;
+  .title {
+    flex: 1;
+    min-width: 0;
+    padding-left: _.unit(2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .value,
+  .valueMuted {
+    width: 100%;
+    padding-left: calc(20px + #{_.unit(2)});
   }
 
   .actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: _.unit(4);
+    flex-shrink: 0;
+    gap: _.unit(3);
   }
 
   .changeButton {
     padding: 0;
-    white-space: normal;
-    text-align: left;
-  }
-
-  .avatarRow {
-    padding: _.unit(4);
+    white-space: nowrap;
   }
 }

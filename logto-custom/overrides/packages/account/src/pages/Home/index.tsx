@@ -1,22 +1,25 @@
 /**
  * [NiceMatrix] Account Center home (merged Profile + Security).
  *
- * Logto v1.39 split Profile and Security into separate routes with a sidebar.
- * We don't want a sidebar — single-page stacked layout works better on
- * mobile and matches our 1.38-era visual.
+ * Layout (single-column, mobile-first):
+ *   H1 "Account Center"
+ *   H2 "Profile"
+ *     ProfileSection  (Logto upstream renders its own "Personal info" sub-card)
+ *   H2 "Security"
+ *     Username, Sign-in, Password, Social, 2-step verification, Deletion
+ *     (each is upstream component with its own sub-card title)
  *
- * Layout:
- *   <h1>Account Center</h1>
- *     <h2>Profile</h2>
- *       ProfileSection (avatar + name/birthdate/gender/address)
- *     <h2>Security</h2>
- *       Username, Email/Phone, Password, Social, MFA, Deletion
+ * Why hardcode the H1/H2 labels: upstream i18n keys for `page.title`,
+ * `page.profile_title`, `page.security_title` translate to localised values
+ * we don't want here (e.g. profile_title -> "Personal info" in en, which
+ * conflicts with the inner ProfileSection title of the same name). Brand
+ * labels stay short and stable in English; if Chinese is needed later we
+ * can add a small i18n bundle.
  *
  * /account/profile and /account/security are kept as redirects (App.tsx)
  * so existing bookmarks still work.
  */
 import classNames from 'classnames';
-import { useTranslation } from 'react-i18next';
 
 import { layoutClassNames } from '@ac/constants/layout';
 
@@ -30,41 +33,39 @@ import UsernameSection from '../Security/UsernameSection';
 
 import styles from './index.module.scss';
 
-const Home = () => {
-  const { t } = useTranslation();
-
-  return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={classNames(styles.title, layoutClassNames.pageTitle)}>
-          {t('account_center.page.title')}
-        </div>
+const Home = () => (
+  <div className={styles.container}>
+    <div className={styles.header}>
+      <div className={classNames(styles.title, layoutClassNames.pageTitle)}>
+        Account Center
       </div>
-
-      <section className={classNames(styles.section, layoutClassNames.pageContent)}>
-        <h2 className={styles.sectionHeading}>
-          {t('account_center.page.profile_title')}
-        </h2>
-        <div className={styles.sectionBody}>
-          <ProfileSection />
-        </div>
-      </section>
-
-      <section className={classNames(styles.section, layoutClassNames.pageContent)}>
-        <h2 className={styles.sectionHeading}>
-          {t('account_center.page.security_title')}
-        </h2>
-        <div className={styles.sectionBody}>
-          <UsernameSection />
-          <EmailPhoneSection />
-          <PasswordSection />
-          <SocialSection />
-          <MfaSection />
-          <DeletionSection />
-        </div>
-      </section>
     </div>
-  );
-};
+
+    <section className={classNames(styles.section, layoutClassNames.pageContent)}>
+      <h2 className={styles.sectionHeading}>Profile</h2>
+      <div className={styles.sectionBody}>
+        <ProfileSection />
+      </div>
+    </section>
+
+    <section className={classNames(styles.section, layoutClassNames.pageContent)}>
+      <h2 className={styles.sectionHeading}>Security</h2>
+      <div className={styles.sectionBody}>
+        <UsernameSection />
+        <EmailPhoneSection />
+        <PasswordSection />
+        <SocialSection />
+        <MfaSection />
+      </div>
+    </section>
+
+    <section className={classNames(styles.section, layoutClassNames.pageContent)}>
+      <h2 className={styles.sectionHeading}>Delete Account</h2>
+      <div className={styles.sectionBody}>
+        <DeletionSection />
+      </div>
+    </section>
+  </div>
+);
 
 export default Home;

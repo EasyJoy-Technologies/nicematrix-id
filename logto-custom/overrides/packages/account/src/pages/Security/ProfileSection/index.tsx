@@ -1,17 +1,26 @@
 /**
- * [NiceMatrix] Profile section rendered at the top of the Account Center
- * Security page. Lets the user edit avatar, family/given name, nickname,
- * birthdate, gender and (formatted) address without leaving the page.
+ * [NiceMatrix] Profile section rendered at the top of Account Center.
+ * Lets the user edit avatar, family/given name, nickname, birthdate, gender
+ * and (formatted) address without leaving the page.
+ *
+ * Visual mirrors upstream Security row sections:
+ *   - card with rounded corners
+ *   - each row = grid (icon | label | value | action)
+ *   - row dividers between adjacent rows
+ *   - mobile: column stack with icon+label on top line, value below
  *
  * All edits go directly to Logto's `/api/my-account` + `/api/my-account/profile`
  * endpoints (plus our `/api/my-account/avatar` override). No NiceMatrix
  * backend proxy is involved.
  */
 import { AccountCenterControlValue, type UserProfile } from '@logto/schemas';
+import classNames from 'classnames';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import PageContext from '@ac/Providers/PageContextProvider/PageContext';
+import ProfileIcon from '@ac/assets/icons/profile.svg?react';
+import { layoutClassNames } from '@ac/constants/layout';
 import useApi from '@ac/hooks/use-api';
 import { updateName, updateProfile } from '@ac/apis/profile';
 import { injectProfilePhrases } from '@ac/i18n/profile-phrases';
@@ -123,9 +132,12 @@ const ProfileSection = () => {
       ? (displayFormatter ? displayFormatter(rawValue) : rawValue)
       : t('profile_section.not_set');
     return (
-      <div key={key ?? label} className={styles.row}>
+      <div key={key ?? label} className={classNames(styles.row, layoutClassNames.row)}>
         <div className={styles.topLine}>
-          <div className={styles.name}>{label}</div>
+          <div className={styles.iconWrap}>
+            <ProfileIcon className={styles.icon} />
+          </div>
+          <div className={styles.title}>{label}</div>
           <div className={rawValue ? styles.value : styles.valueMuted}>{displayed}</div>
           {isProfileEditable && (
             <div className={styles.actions}>
@@ -149,9 +161,8 @@ const ProfileSection = () => {
   };
 
   return (
-    <div className={styles.section}>
-      <div className={styles.sectionTitle}>{t('profile_section.title')}</div>
-      <div className={styles.card}>
+    <div className={classNames(styles.section, layoutClassNames.section)}>
+      <div className={classNames(styles.card, layoutClassNames.card)}>
         {isAvatarVisible && <AvatarEditor />}
 
         {isProfileVisible && (
