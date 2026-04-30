@@ -40,6 +40,13 @@
   gap: _.unit(5);
 }
 
+// Wrapper for the upstream PageFooter (terms / privacy / support).
+// 2rem (= _.unit(8) at the standard 4px unit) gap above so the footer
+// reads as page-level chrome distinct from the last content section.
+.footer {
+  margin-top: _.unit(8);
+}
+
 :global(body.mobile) {
   .container {
     gap: _.unit(5);
@@ -60,5 +67,9 @@
 
   .sectionBody {
     gap: _.unit(4);
+  }
+
+  .footer {
+    margin-top: _.unit(6);
   }
 }

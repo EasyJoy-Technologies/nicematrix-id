@@ -1,13 +1,17 @@
 /**
- * [NiceMatrix] Account Center home (merged Profile + Security).
+ * [NiceMatrix] Account Center home (merged Profile + Security + Delete).
  *
  * Layout (single-column, mobile-first):
  *   H1 "Account Center"
  *   H2 "Profile"
  *     ProfileSection  (Logto upstream renders its own "Personal info" sub-card)
  *   H2 "Security"
- *     Username, Sign-in, Password, Social, 2-step verification, Deletion
+ *     Username, Sign-in, Password, Social, 2-step verification
  *     (each is upstream component with its own sub-card title)
+ *   H2 "Delete Account"
+ *     DeletionSection (NiceMatrix override)
+ *   PageFooter
+ *     Terms / Privacy / Support links sourced from experienceSettings.
  *
  * Why hardcode the H1/H2 labels: upstream i18n keys for `page.title`,
  * `page.profile_title`, `page.security_title` translate to localised values
@@ -16,11 +20,21 @@
  * labels stay short and stable in English; if Chinese is needed later we
  * can add a small i18n bundle.
  *
+ * Why include PageFooter here: upstream Profile / Security pages each
+ * render <PageFooter /> at the bottom (terms / privacy / support links).
+ * When we merged the two pages into a single Home, those links got
+ * dropped. Re-adding the upstream PageFooter restores them without
+ * re-implementing link logic; the component already reads termsOfUseUrl /
+ * privacyPolicyUrl / supportEmail / supportWebsiteUrl from
+ * experienceSettings and conditionally renders only the links that are
+ * configured.
+ *
  * /account/profile and /account/security are kept as redirects (App.tsx)
  * so existing bookmarks still work.
  */
 import classNames from 'classnames';
 
+import PageFooter from '@ac/components/PageFooter';
 import { layoutClassNames } from '@ac/constants/layout';
 
 import DeletionSection from '../Security/DeletionSection';
@@ -65,6 +79,10 @@ const Home = () => (
         <DeletionSection />
       </div>
     </section>
+
+    <div className={styles.footer}>
+      <PageFooter />
+    </div>
   </div>
 );
 
