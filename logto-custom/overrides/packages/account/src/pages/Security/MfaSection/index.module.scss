@@ -176,23 +176,30 @@
     gap: _.unit(1.5);
   }
 
+  // toggleRow text (top section) keeps wrapping behaviour. Per-row
+  // .title / .plainValue / .notConfigured are handled below in the
+  // grid block (single-line + ellipsis), so don't pull them in here.
   .toggleTitle,
-  .toggleDescription,
-  .plainValue,
-  .title,
-  .notConfigured {
+  .toggleDescription {
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
+  // Mobile: same 2-row layout as EmailPhoneSection so the page reads
+  // as one consistent list:
+  //   row 1: [icon] [title]                         [actions]
+  //   row 2: [statusTag / plainValue / notConfigured]   (ellipsis)
+  // Long values (e.g. "+1 587-123-4567" or a long passkey label) stay
+  // single-line and ellipsise instead of wrapping.
   .row {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
     align-items: center;
     column-gap: _.unit(3);
-    padding: _.unit(3);
+    row-gap: _.unit(1);
+    padding: _.unit(4);
     min-height: 0;
-    row-gap: 0;
   }
 
   .topLine {
@@ -201,31 +208,45 @@
 
   .iconWrap {
     grid-column: 1;
+    grid-row: 1;
+    align-self: center;
   }
 
   .title {
     grid-column: 2;
+    grid-row: 1;
     padding-left: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    align-self: center;
   }
 
   .value {
-    grid-column: 3;
+    grid-column: 1 / -1;
+    grid-row: 2;
     min-width: 0;
-    align-items: flex-start;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
   }
 
-  .statusTag {
+  // Constrain the inner status pill / plain text / not-configured
+  // label to a single ellipsised line.
+  .statusTag,
+  .plainValue,
+  .notConfigured {
+    min-width: 0;
     max-width: 100%;
-    flex-wrap: wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .actions {
-    grid-column: 4;
+    grid-column: 3;
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: flex-end;

@@ -145,6 +145,15 @@
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
+    // Same rationale as UsernameSection: centre the value cell
+    // vertically so a wrapped status tag pairs with a centred button
+    // (no top-aligned button when the value occupies multiple lines).
+    align-self: center;
+  }
+
+  .iconWrap,
+  .title {
+    align-self: center;
   }
 
   .statusTag {

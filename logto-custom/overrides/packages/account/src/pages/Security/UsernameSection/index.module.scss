@@ -118,6 +118,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    align-self: center;
   }
 
   .value {
@@ -126,6 +127,10 @@
     min-width: 0;
     overflow-wrap: anywhere;
     word-break: break-word;
+    // Centre the value text vertically within its cell so when it
+    // wraps to multiple lines the action button (also centred) lines
+    // up with the middle of the wrapped block, never the top.
+    align-self: center;
   }
 
   .actions {
