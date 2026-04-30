@@ -5,20 +5,25 @@
  *   line 1: [icon]                         [Change]
  *   line 2: Email
  *   line 3: xianglin@nicematrix.ca
- * That looks fragmented when there's plenty of horizontal room.
+ * That over-spaces the row when the value is short, and when the
+ * value is long it forces a soft-wrap inside the value (e.g. an email
+ * breaking mid-domain) which looks broken.
  *
- * Our mobile rule keeps the icon + label + value + actions on a SINGLE
- * grid row whenever the viewport allows it. The trick is to dissolve
- * `.topLine` (which is `display: contents` on desktop and a flex row on
- * upstream mobile) so that `.iconWrap` and `.actions` become direct grid
- * items of `.row`. Then we lay out the row as 4 columns:
- *   [icon] [label] [value (flex, can wrap inside its column)] [actions]
+ * Our mobile layout (2 rows × 3 cols):
+ *   row 1, col 1=auto:    [icon]
+ *   row 1, col 2=1fr:     “Email” / “Phone” label
+ *   row 1, col 3=auto:    [Change] [Remove]
+ *   row 2, span 1 → -1:    value (e.g. xianglin@nicematrix.ca)
+ *                          — single line, ellipsised when too long.
  *
- * If value text is genuinely too long, `min-width: 0` +
- * `overflow-wrap: anywhere` makes it wrap WITHIN its grid cell. The
- * action button stays right-aligned and never falls to a new line; if
- * value wraps to multiple lines, .row's align-items: center keeps the
- * button vertically centred against the wrapped block.
+ * `.topLine` is upstream-defined as `display: contents` on desktop and
+ * as a flex row on mobile. We force `display: contents` on mobile too
+ * so `.iconWrap` and `.actions` participate as direct grid items of
+ * `.row`. `.title` and `.value` are already direct children of `.row`.
+ *
+ * Why ellipsis (not wrap): the user needs a stable, single-line value
+ * so the row height stays predictable. The full value can be seen by
+ * tapping “Change” which navigates to the editor.
  *
  * Desktop rules below are copied unchanged from upstream.
  */
@@ -138,53 +143,64 @@
     padding-left: 0;
   }
 
-  // Re-define .row as a 4-col grid so icon + label + value + actions stay
-  // on the same line when there is room. .topLine is dissolved via
-  // display:contents so its children become direct grid items.
+  // 2 rows x 3 cols. Row 1 = [icon, label, actions]; row 2 = value
+  // (full-width, single line, ellipsis on overflow).
   .row {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
     align-items: center;
     column-gap: _.unit(3);
-    padding: _.unit(3);
+    row-gap: _.unit(1);
+    padding: _.unit(4);
     min-height: 0;
-    row-gap: 0;
   }
 
+  // Force `display: contents` on mobile so .iconWrap and .actions become
+  // direct grid children of .row (upstream mobile would make .topLine a
+  // flex row, which would steal them out of the grid).
   .topLine {
     display: contents;
   }
 
   .iconWrap {
     grid-column: 1;
+    grid-row: 1;
+    align-self: center;
   }
 
   .title {
     grid-column: 2;
-    grid-row: auto;
+    grid-row: 1;
     padding-left: 0;
-    white-space: nowrap;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .value {
-    grid-column: 3;
-    grid-row: auto;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    white-space: nowrap;
+    align-self: center;
   }
 
   .actions {
-    grid-column: 4;
-    grid-row: auto;
+    grid-column: 3;
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     flex-shrink: 0;
     gap: _.unit(3);
     align-self: center;
+  }
+
+  // Value occupies its own row, full width, single line. If too long,
+  // ellipsise rather than wrap so row height stays stable.
+  .value {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .changeButton,
