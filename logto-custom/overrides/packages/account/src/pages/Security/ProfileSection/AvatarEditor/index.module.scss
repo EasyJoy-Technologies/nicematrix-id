@@ -11,6 +11,17 @@
   align-items: center;
   gap: _.unit(2);
   padding: _.unit(6) _.unit(6) _.unit(5);
+  border-bottom: 1px solid var(--color-divider-default);
+}
+
+:global(body.mobile) {
+  .centered {
+    padding: _.unit(5) _.unit(4) _.unit(4);
+  }
+  .avatarWrapper, .avatar {
+    width: 96px;
+    height: 96px;
+  }
 }
 
 .avatarWrapper {

@@ -3,9 +3,9 @@ import {
   userProfileResponseGuard,
   userProfileGuard,
   AccountCenterControlValue,
-  SignInIdentifier,
   userMfaDataGuard,
   userMfaDataKey,
+  userMfaSettingsResponseGuard,
   jsonObjectGuard,
 } from '@logto/schemas';
 import { conditional } from '@silverhand/essentials';
@@ -15,6 +15,7 @@ import RequestError from '#src/errors/RequestError/index.js';
 import { encryptUserPassword } from '#src/libraries/user.utils.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import assertThat from '#src/utils/assert-that.js';
+import { assertUserHasRemainingIdentifier } from '#src/utils/user.js';
 
 import { PasswordValidator } from '../experience/classes/libraries/password-validator.js';
 import type { UserRouter, RouterInitArgs } from '../types.js';
@@ -37,6 +38,7 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
   const {
     users: { updateUserById, findUserById },
     signInExperiences: { findDefaultSignInExperience },
+    userSsoIdentities,
   } = queries;
 
   const {
@@ -69,10 +71,10 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
         customData: jsonObjectGuard.optional(),
       }),
       response: userProfileResponseGuard.partial(),
-      status: [200, 400, 422],
+      status: [200, 400, 401, 422],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
+      const { id: userId, scopes, identityVerified } = ctx.auth;
       const { body } = ctx.guard;
       const { name, avatar, username, customData } = body;
       const { fields } = ctx.accountCenter;
@@ -99,12 +101,17 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
       }
 
       if (username !== undefined) {
+        assertThat(
+          identityVerified,
+          new RequestError({ code: 'verification_record.permission_denied', status: 401 })
+        );
+
         if (username === null) {
-          const { signUp } = await findDefaultSignInExperience();
-          assertThat(
-            !signUp.identifiers.includes(SignInIdentifier.Username),
-            'user.username_required'
-          );
+          const [user, ssoIdentities] = await Promise.all([
+            findUserById(userId),
+            userSsoIdentities.findUserSsoIdentitiesByUserId(userId),
+          ]);
+          assertUserHasRemainingIdentifier(user, { username: null }, ssoIdentities.length);
         } else {
           await checkIdentifierCollision({ username }, userId);
         }
@@ -206,9 +213,7 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
   router.get(
     `${accountApiPrefix}/mfa-settings`,
     koaGuard({
-      response: z.object({
-        skipMfaOnSignIn: z.boolean(),
-      }),
+      response: userMfaSettingsResponseGuard,
       status: [200, 400, 401],
     }),
     async (ctx, next) => {
@@ -241,9 +246,7 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
       body: z.object({
         skipMfaOnSignIn: z.boolean(),
       }),
-      response: z.object({
-        skipMfaOnSignIn: z.boolean(),
-      }),
+      response: userMfaSettingsResponseGuard,
       status: [200, 400, 401],
     }),
     async (ctx, next) => {

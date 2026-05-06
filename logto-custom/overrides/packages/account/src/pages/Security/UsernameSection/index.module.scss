@@ -1,0 +1,151 @@
+/**
+ * [NiceMatrix] Override of upstream UsernameSection mobile rules.
+ * No icon variant: row = [name (label)] [value, flex+wrap] [actions].
+ * .topLine is dissolved via display:contents so .name and .actions
+ * become direct grid items. align-items: center keeps the action button
+ * vertically centred when value wraps to multiple lines.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1.5);
+}
+
+.sectionTitle {
+  padding-left: _.unit(1);
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.card {
+  background: var(--color-bg-body);
+  border-radius: 12px;
+  overflow: clip;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+  grid-auto-flow: dense;
+  column-gap: _.unit(6);
+  align-items: center;
+  padding: _.unit(5) _.unit(6);
+  min-height: 64px;
+}
+
+.topLine {
+  display: contents;
+}
+
+.name {
+  grid-column: 1;
+  min-width: 0;
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.value {
+  grid-column: 2;
+  min-width: 0;
+  font: var(--font-body-2);
+  color: var(--color-type-primary);
+}
+
+.secondaryValue {
+  color: var(--color-type-secondary);
+}
+
+.actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  flex-shrink: 0;
+}
+
+.changeButton {
+  font: var(--font-label-2);
+  color: var(--color-type-link);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.removeButton {
+  font: var(--font-label-2);
+  color: var(--color-danger-default);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+:global(body.mobile) {
+  .sectionTitle {
+    padding-left: 0;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: _.unit(3);
+    padding: _.unit(3);
+    min-height: 0;
+    row-gap: 0;
+  }
+
+  .topLine {
+    display: contents;
+  }
+
+  .name {
+    grid-column: 1;
+    width: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-self: center;
+  }
+
+  .value {
+    grid-column: 2;
+    width: auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    // Centre the value text vertically within its cell so when it
+    // wraps to multiple lines the action button (also centred) lines
+    // up with the middle of the wrapped block, never the top.
+    align-self: center;
+  }
+
+  .actions {
+    grid-column: 3;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    gap: _.unit(3);
+    align-self: center;
+  }
+
+  .changeButton,
+  .removeButton {
+    padding: 0;
+    white-space: nowrap;
+  }
+}

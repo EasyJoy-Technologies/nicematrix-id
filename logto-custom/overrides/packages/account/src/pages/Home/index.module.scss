@@ -1,0 +1,81 @@
+/**
+ * [NiceMatrix] Home (merged Account Center) layout.
+ * Desktop: 760px centered card with H1 + 2 sections.
+ * Mobile (body.mobile): full-bleed, smaller paddings, label/value stacks.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(6);
+}
+
+.header {
+  margin-bottom: _.unit(2);
+}
+
+.title {
+  font: var(--font-title-1);
+  color: var(--color-type-primary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  // 4px between H2 and the first inner element. The H2 reads as a
+  // tight label for the content immediately below it, with no
+  // visible breathing room that would suggest a separate region.
+  // Required so sections without an inner sub-title (Delete Account)
+  // don't look orphaned next to sections that have one (Profile /
+  // Security).
+  gap: _.unit(1);
+}
+
+.sectionHeading {
+  font: var(--font-title-3);
+  color: var(--color-type-primary);
+  margin: 0;
+  padding-left: _.unit(1);
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(5);
+}
+
+// Wrapper for the upstream PageFooter (terms / privacy / support).
+// 2rem (= _.unit(8) at the standard 4px unit) gap above so the footer
+// reads as page-level chrome distinct from the last content section.
+.footer {
+  margin-top: _.unit(8);
+}
+
+:global(body.mobile) {
+  .container {
+    gap: _.unit(5);
+  }
+
+  .header {
+    margin-bottom: _.unit(1);
+  }
+
+  .title {
+    font: var(--font-title-2);
+  }
+
+  .sectionHeading {
+    font: var(--font-title-3);
+    padding-left: 0;
+  }
+
+  .sectionBody {
+    gap: _.unit(4);
+  }
+
+  .footer {
+    margin-top: _.unit(6);
+  }
+}

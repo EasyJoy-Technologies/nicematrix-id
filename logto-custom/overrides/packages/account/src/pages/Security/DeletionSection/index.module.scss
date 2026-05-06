@@ -1,58 +1,96 @@
+/**
+ * [NiceMatrix] DeletionSection — visual alignment with Profile/Security cards.
+ *
+ * Why this file exists:
+ *   The Account Center home page renders three H2 sections (Profile,
+ *   Security, Delete Account). Profile and Security sub-cards use the
+ *   upstream "white card on body bg" treatment (`--color-bg-body` +
+ *   12px radius + clip overflow). The deletion card previously used a
+ *   distinct red-bordered "danger" treatment, which made the Delete
+ *   Account region visually break from the rest of the page.
+ *
+ * What this file does:
+ *   Reuses the same .card / .row visual contract as upstream
+ *   UsernameSection / EmailPhoneSection (white card, _.unit(5)/_.unit(6)
+ *   padding) so the three H2 zones all read as the same kind of UI. The
+ *   destructive nature of the action is now carried by the red Delete
+ *   button alone, which is sufficient and avoids doubling up the "this is
+ *   dangerous" cue with a red border.
+ *
+ *   Banner styles (top-of-page pending/awaiting alert) are kept distinct
+ *   from .card on purpose — they are status alerts, not list rows. The
+ *   pending banner uses Logto's documented `alert` palette (which is the
+ *   warning role in Logto's design system; there is no separate
+ *   `--color-warning-*` family). A previous revision referenced
+ *   non-existent `--color-warning-10/30` and silently fell back to a
+ *   transparent banner — fixed here.
+ *
+ *   All token names below are validated against
+ *   logto-upstream/packages/experience/src/shared/scss/_colors.scss.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: _.unit(1.5);
 }
 
 .sectionTitle {
   font: var(--font-title-3);
-  color: var(--color-danger-40);
+  color: var(--color-danger-default);
 }
 
+// Aligned with upstream UsernameSection / EmailPhoneSection card.
 .card {
-  background: var(--color-layer-1);
-  border: 1px solid var(--color-danger-20);
+  background: var(--color-bg-body);
   border-radius: 12px;
-  padding: 16px 20px;
+  overflow: clip;
 }
 
+// Aligned with upstream row metrics (padding 5/6, min-height 64).
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: _.unit(4);
+  padding: _.unit(5) _.unit(6);
+  min-height: 64px;
   flex-wrap: wrap;
 }
 
 .info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: _.unit(1);
   flex: 1;
   min-width: 200px;
 }
 
 .name {
-  font: var(--font-label-1);
-  color: var(--color-text);
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
 }
 
 .description {
   font: var(--font-body-2);
-  color: var(--color-text-secondary);
+  color: var(--color-type-secondary);
 }
 
+// Destructive action keeps red colour — that's the only "danger" cue we
+// need now that the surrounding card is neutral.
 .deleteButton {
-  background: var(--color-danger-40);
+  background: var(--color-danger-default);
   color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
   font: var(--font-label-2);
   cursor: pointer;
+  flex-shrink: 0;
 
   &:hover {
-    background: var(--color-danger-50);
+    background: var(--color-danger-hover);
   }
 
   &:disabled {
@@ -63,58 +101,85 @@
 
 .cancelButton {
   background: transparent;
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
+  color: var(--color-type-primary);
+  border: 1px solid var(--color-line-divider);
   border-radius: 8px;
   padding: 8px 16px;
   font: var(--font-label-2);
   cursor: pointer;
 
   &:hover {
-    background: var(--color-layer-2);
+    background: var(--color-overlay-neutral-hover);
   }
 }
 
-// Banner shown at the top of Security page when a request is open.
+// Mobile: zero top padding inside the card so the H2 above the card
+// sits the same ~4px (Home .section gap) away from the first text
+// line as Profile / Security do (where the gap is filled by a leading
+// sub-section title rendered outside any card). The card surface is
+// visible (white on the page's neutral-95 background) but the text
+// inside it starts right at the card's top edge, matching the visual
+// rhythm of the surrounding sections. Side / bottom padding kept so
+// the description and Delete button still breathe.
+:global(body.mobile) {
+  .row {
+    padding: 0 _.unit(4) _.unit(3);
+    flex-direction: column;
+    align-items: stretch;
+    gap: _.unit(2);
+  }
+
+  .deleteButton {
+    align-self: flex-end;
+  }
+}
+
+// Banner shown at the top of the page when a request is open.
+// Intentionally distinct from .card — it's a status alert, not a list row.
+// NOTE: Logto design tokens use the `alert` palette as warning. We use
+// the documented `--color-container-alert` (light amber surface) and
+// `--color-container-on-alert` (deep amber on-content) — both are theme-
+// aware and switch correctly between light and dark.
 .banner {
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: _.unit(3.5) _.unit(4.5);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: _.unit(2);
+  margin-bottom: _.unit(5);
 }
 
 .bannerPending {
-  background: var(--color-warning-10);
-  border: 1px solid var(--color-warning-30);
+  background: var(--color-container-alert);
+  border: 1px solid var(--color-container-on-alert);
 }
 
 .bannerAwaiting {
-  background: var(--color-hover-variant);
-  border: 1px solid var(--color-border);
+  background: var(--color-overlay-neutral-hover);
+  border: 1px solid var(--color-line-divider);
 }
 
 .bannerTitle {
   font: var(--font-label-1);
-  color: var(--color-text);
+  color: var(--color-type-primary);
 }
 
 .bannerDescription {
   font: var(--font-body-2);
-  color: var(--color-text-secondary);
+  color: var(--color-type-secondary);
 }
 
 .bannerActions {
   display: flex;
-  gap: 8px;
+  gap: _.unit(2);
 }
 
-// Modal used for reason input + two-step confirmation.
+// Modal used for reason input + two-step confirmation. Unchanged in
+// behaviour, only token names normalised.
 .modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--color-bg-mask);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -122,24 +187,24 @@
 }
 
 .modal {
-  background: var(--color-layer-1);
+  background: var(--color-bg-float);
   border-radius: 12px;
   max-width: 480px;
   width: calc(100% - 40px);
-  padding: 24px;
+  padding: _.unit(6);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: _.unit(4);
 }
 
 .modalTitle {
   font: var(--font-title-3);
-  color: var(--color-text);
+  color: var(--color-type-primary);
 }
 
 .modalWarning {
   font: var(--font-body-2);
-  color: var(--color-text-secondary);
+  color: var(--color-type-secondary);
   line-height: 1.5;
 }
 
@@ -148,15 +213,15 @@
   min-height: 88px;
   padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-layer-2);
-  color: var(--color-text);
+  border: 1px solid var(--color-line-divider);
+  background: var(--color-bg-body);
+  color: var(--color-type-primary);
   font: var(--font-body-2);
   resize: vertical;
 }
 
 .modalActions {
   display: flex;
-  gap: 8px;
+  gap: _.unit(2);
   justify-content: flex-end;
 }

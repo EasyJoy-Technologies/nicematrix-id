@@ -1,0 +1,266 @@
+/**
+ * [NiceMatrix] Override of upstream MfaSection mobile rules.
+ * MFA factor rows match EmailPhoneSection (.iconWrap + .actions inside
+ * .topLine, .title and .value siblings of .topLine inside .row).
+ * Mobile: 4-col grid, .topLine dissolved via display:contents.
+ * The toggleRow (top of MFA card) is left untouched — it has its own
+ * upstream layout with toggle switch.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1.5);
+}
+
+.sectionTitle {
+  padding-left: _.unit(1);
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.card {
+  background: var(--color-bg-body);
+  border-radius: 12px;
+  overflow: clip;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+  grid-auto-flow: dense;
+  column-gap: _.unit(6);
+  align-items: center;
+  padding: _.unit(5) _.unit(6);
+  min-height: 76px;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--color-line-divider);
+  }
+}
+
+.topLine {
+  display: contents;
+}
+
+// Icon and title share the same grid cell so the name slot stays within 200px,
+// matching the original non-grid layout. Title offsets via padding to sit after the icon.
+.iconWrap {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  flex-shrink: 0;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-type-primary);
+  flex-shrink: 0;
+}
+
+.title {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  padding-left: calc(20px + #{_.unit(4)});
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.value {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.statusTag {
+  display: flex;
+  align-items: center;
+  gap: _.unit(2);
+  padding: _.unit(0.5) _.unit(2);
+  border-radius: 14px;
+  background: rgba(78, 162, 84, 12%);
+  font: var(--font-label-3);
+  color: var(--color-type-primary);
+}
+
+.statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-success-default);
+}
+
+.plainValue {
+  font: var(--font-body-2);
+  color: var(--color-type-primary);
+}
+
+.notConfigured {
+  font: var(--font-body-2);
+  color: var(--color-type-secondary);
+}
+
+.actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: _.unit(4);
+  flex-shrink: 0;
+}
+
+.actionButton {
+  font: var(--font-label-2);
+  color: var(--color-type-link);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.notification {
+  margin: 0;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  padding: _.unit(5) _.unit(6);
+}
+
+.toggleInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1);
+  min-width: 0;
+}
+
+.toggleTitle {
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.toggleDescription {
+  font: var(--font-body-2);
+  color: var(--color-type-secondary);
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-line-divider);
+}
+
+:global(body.mobile) {
+  .sectionTitle {
+    padding-left: 0;
+  }
+
+  .toggleRow {
+    gap: _.unit(3);
+    padding: _.unit(4);
+  }
+
+  .toggleInfo {
+    gap: _.unit(1.5);
+  }
+
+  // toggleRow text (top section) keeps wrapping behaviour. Per-row
+  // .title / .plainValue / .notConfigured are handled below in the
+  // grid block (single-line + ellipsis), so don't pull them in here.
+  .toggleTitle,
+  .toggleDescription {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  // Mobile: same 2-row layout as EmailPhoneSection so the page reads
+  // as one consistent list:
+  //   row 1: [icon] [title]                         [actions]
+  //   row 2: [statusTag / plainValue / notConfigured]   (ellipsis)
+  // Long values (e.g. "+1 587-123-4567" or a long passkey label) stay
+  // single-line and ellipsise instead of wrapping.
+  .row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: _.unit(3);
+    row-gap: _.unit(1);
+    padding: _.unit(4);
+    min-height: 0;
+  }
+
+  .topLine {
+    display: contents;
+  }
+
+  .iconWrap {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .title {
+    grid-column: 2;
+    grid-row: 1;
+    padding-left: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    align-self: center;
+  }
+
+  // Value sits on row 2, columns 1-2 only, leaving column 3 for the
+  // action button on the same row.
+  .value {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  // Constrain the inner status pill / plain text / not-configured
+  // label to a single ellipsised line.
+  .statusTag,
+  .plainValue,
+  .notConfigured {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Action buttons sit on row 2, the same row as the value, so they
+  // visually pair with the value the user is reading. Row 1 (icon +
+  // label) intentionally has nothing in column 3.
+  .actions {
+    grid-column: 3;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    gap: _.unit(3);
+    align-self: center;
+  }
+
+  .actionButton {
+    padding: 0;
+    white-space: nowrap;
+  }
+}

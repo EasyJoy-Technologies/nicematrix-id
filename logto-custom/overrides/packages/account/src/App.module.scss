@@ -1,0 +1,112 @@
+/**
+ * [NiceMatrix] Account Center layout SCSS.
+ *
+ * We don't use the v1.39 sidebar+full-page layout. Profile and Security pages
+ * render inside cardContainer (centered card on desktop, full-bleed on mobile).
+ * This keeps the visual identical to 1.38-era Home page and naturally adapts
+ * to phones.
+ *
+ * Constraints baked in below:
+ *   - desktop: card centered, max-width 760px
+ *   - mobile (body.mobile): full-width, comfortable padding
+ *   - footer (LogtoSignature) sits below the card
+ */
+@use '@experience/shared/scss/_underscore.scss' as _;
+
+.app {
+  .layout {
+    position: absolute;
+    inset: 0;
+    overflow: auto;
+  }
+
+  .fullPage {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.main {
+  width: 760px;
+  display: flex;
+  flex-direction: column;
+  padding: _.unit(3) 0;
+}
+
+.cardContainer {
+  min-height: 100%;
+  @include _.flex_column(center, center);
+  padding: _.unit(6) _.unit(4);
+}
+
+.cardMain {
+  @include _.flex_column;
+  width: 100%;
+  max-width: 760px;
+}
+
+.signature {
+  // upstream default styling kept; specifics handled by LogtoSignature itself
+}
+
+:global(body.mobile) {
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .layout {
+    position: static;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .main {
+    width: auto;
+    flex: 1;
+    padding: _.unit(4) _.unit(5);
+    background: var(--color-bg-float-base);
+  }
+
+  .cardContainer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .cardMain {
+    flex: 1;
+    width: auto;
+    max-width: none;
+    /* Tighter side padding on mobile so rows have more horizontal room
+       for icon+label+actions to stay on one line. */
+    padding: _.unit(3) _.unit(2);
+    position: relative;
+    background: var(--color-bg-body);
+  }
+
+  .signature {
+    margin: _.unit(10) 0 _.unit(2);
+  }
+}

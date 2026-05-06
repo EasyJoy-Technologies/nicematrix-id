@@ -25,6 +25,10 @@ ENV APPLICATIONINSIGHTS_CONNECTION_STRING=${applicationinsights_connection_strin
 ARG additional_connector_args
 ENV ADDITIONAL_CONNECTOR_ARGS=${additional_connector_args}
 
+# Console build is heavy (Vite + many circular chunks).
+# Default Node heap (~4GB) OOMs on hosts with little headroom; raise to 6GB.
+ENV NODE_OPTIONS="--max-old-space-size=6144"
+
 RUN pnpm i
 RUN pnpm -r build
 RUN pnpm cli connector link $ADDITIONAL_CONNECTOR_ARGS -p .

@@ -1,15 +1,23 @@
+/**
+ * [NiceMatrix] ProfileSection — adaptive single-row layout.
+ *
+ * Goal across all viewports (desktop & mobile):
+ *   [Label]   [value, can wrap inside its column]   [Change button]
+ * all aligned on a single grid row. Value wraps WITHIN its column when
+ * it's too long; the action button stays right-aligned and never falls
+ * to a new line. Label keeps its intrinsic width on the left.
+ *
+ * If a row genuinely has no horizontal room (very long unbreakable value
+ * + extreme narrow viewport), `min-width: 0` + `overflow-wrap: anywhere`
+ * makes the value text break inside column 2 — the row's geometry is
+ * preserved.
+ */
 @use '@experience/shared/scss/underscore' as _;
 
 .section {
   display: flex;
   flex-direction: column;
   gap: _.unit(1.5);
-}
-
-.sectionTitle {
-  padding-left: _.unit(1);
-  font: var(--font-label-2);
-  color: var(--color-type-primary);
 }
 
 .card {
@@ -19,42 +27,51 @@
 }
 
 .row {
-  display: flex;
+  display: grid;
+  // col 1 = label (intrinsic), col 2 = value (flex), col 3 = action
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: _.unit(6);
+  column-gap: _.unit(6);
   padding: _.unit(5) _.unit(6);
   min-height: 64px;
 
-  & + & {
-    border-top: 1px solid var(--color-divider-default);
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--color-line-divider);
   }
 }
 
-.info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: _.unit(6);
-  min-width: 0;
-}
-
-.name {
-  flex: 1;
-  max-width: 200px;
+.label {
+  grid-column: 1;
+  // Reserve a sensible label width on desktop so values line up across rows.
+  min-width: 160px;
   font: var(--font-label-2);
   color: var(--color-type-primary);
 }
 
 .value {
-  flex: 1;
+  grid-column: 2;
+  min-width: 0;
   font: var(--font-body-2);
   color: var(--color-type-primary);
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .valueMuted {
-  composes: value;
+  grid-column: 2;
+  min-width: 0;
+  font: var(--font-body-2);
   color: var(--color-type-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  flex-shrink: 0;
 }
 
 .changeButton {
@@ -69,44 +86,30 @@
   &:hover {
     text-decoration: underline;
   }
+}
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    text-decoration: none;
+:global(body.mobile) {
+  .row {
+    column-gap: _.unit(3);
+    padding: _.unit(3) _.unit(3);
   }
-}
 
-.avatarRow {
-  gap: _.unit(4);
-  padding: _.unit(5) _.unit(6);
-}
-
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--color-neutral-variant-90);
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.avatarActions {
-  display: flex;
-  flex-direction: column;
-  gap: _.unit(1);
-
-  & > button {
-    text-align: start;
+  .label {
+    // Mobile: drop the 160px reserve; let label use just what it needs.
+    min-width: 0;
+    white-space: nowrap;
   }
-}
 
-.avatarHint {
-  font: var(--font-body-3);
-  color: var(--color-type-secondary);
-}
+  .actions {
+    gap: _.unit(3);
+    // When value wraps to multiple lines, .row's align-items: center keeps
+    // the action button vertically centred against the wrapped block.
+    // Never top-aligned (would look like a stranded button at the top).
+    align-self: center;
+  }
 
-.avatarRemove {
-  composes: changeButton;
-  color: var(--color-type-error);
+  .changeButton {
+    padding: 0;
+    white-space: nowrap;
+  }
 }

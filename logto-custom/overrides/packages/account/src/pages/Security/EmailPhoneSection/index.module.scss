@@ -1,0 +1,216 @@
+/**
+ * [NiceMatrix] Override of upstream EmailPhoneSection mobile rules.
+ *
+ * Upstream mobile collapses the row into a 3-line column stack:
+ *   line 1: [icon]                         [Change]
+ *   line 2: Email
+ *   line 3: xianglin@nicematrix.ca
+ * That over-spaces the row when the value is short, and when the
+ * value is long it forces a soft-wrap inside the value (e.g. an email
+ * breaking mid-domain) which looks broken.
+ *
+ * Our mobile layout (2 rows × 3 cols):
+ *   row 1, col 1=auto:    [icon]
+ *   row 1, col 2=1fr:     “Email” / “Phone” label
+ *   row 1, col 3=auto:    [Change] [Remove]
+ *   row 2, span 1 → -1:    value (e.g. xianglin@nicematrix.ca)
+ *                          — single line, ellipsised when too long.
+ *
+ * `.topLine` is upstream-defined as `display: contents` on desktop and
+ * as a flex row on mobile. We force `display: contents` on mobile too
+ * so `.iconWrap` and `.actions` participate as direct grid items of
+ * `.row`. `.title` and `.value` are already direct children of `.row`.
+ *
+ * Why ellipsis (not wrap): the user needs a stable, single-line value
+ * so the row height stays predictable. The full value can be seen by
+ * tapping “Change” which navigates to the editor.
+ *
+ * Desktop rules below are copied unchanged from upstream.
+ */
+@use '@experience/shared/scss/underscore' as _;
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(1.5);
+}
+
+.sectionTitle {
+  padding-left: _.unit(1);
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.card {
+  background: var(--color-bg-body);
+  border-radius: 12px;
+  overflow: clip;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+  grid-auto-flow: dense;
+  column-gap: _.unit(6);
+  align-items: center;
+  padding: _.unit(5) _.unit(6);
+  min-height: 64px;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid var(--color-line-divider);
+  }
+}
+
+.topLine {
+  display: contents;
+}
+
+// Icon and title share the same grid cell so the name slot stays within 200px,
+// matching the original non-grid layout. Title offsets via padding to sit after the icon.
+.iconWrap {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  flex-shrink: 0;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-type-primary);
+}
+
+.title {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  padding-left: calc(20px + #{_.unit(4)});
+  font: var(--font-label-2);
+  color: var(--color-type-primary);
+}
+
+.value {
+  grid-column: 2;
+  min-width: 0;
+  font: var(--font-body-2);
+  color: var(--color-type-primary);
+}
+
+.secondaryValue {
+  color: var(--color-type-secondary);
+}
+
+.actions {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: _.unit(6);
+  flex-shrink: 0;
+}
+
+.changeButton {
+  font: var(--font-label-2);
+  color: var(--color-type-link);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.removeButton {
+  font: var(--font-label-2);
+  color: var(--color-danger-default);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: _.unit(0.5) 0;
+  white-space: nowrap;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+:global(body.mobile) {
+  .sectionTitle {
+    padding-left: 0;
+  }
+
+  // 2 rows x 3 cols. Row 1 = [icon, label, actions]; row 2 = value
+  // (full-width, single line, ellipsis on overflow).
+  .row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: _.unit(3);
+    row-gap: _.unit(1);
+    padding: _.unit(4);
+    min-height: 0;
+  }
+
+  // Force `display: contents` on mobile so .iconWrap and .actions become
+  // direct grid children of .row (upstream mobile would make .topLine a
+  // flex row, which would steal them out of the grid).
+  .topLine {
+    display: contents;
+  }
+
+  .iconWrap {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .title {
+    grid-column: 2;
+    grid-row: 1;
+    padding-left: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    align-self: center;
+  }
+
+  // Action buttons sit on row 2, the same row as the value, so they
+  // visually pair with the value the user is reading. Row 1 (icon +
+  // label) intentionally has nothing in column 3.
+  .actions {
+    grid-column: 3;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    gap: _.unit(3);
+    align-self: center;
+  }
+
+  // Value occupies its own row, full width, single line. If too long,
+  // ellipsise rather than wrap so row height stays stable.
+  // Value sits on row 2, columns 1-2 only, leaving column 3 for the
+  // action button on the same row. Single-line ellipsis on overflow.
+  .value {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    align-self: center;
+  }
+
+  .changeButton,
+  .removeButton {
+    padding: 0;
+    white-space: nowrap;
+  }
+}

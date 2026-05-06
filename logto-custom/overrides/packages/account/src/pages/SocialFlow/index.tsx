@@ -12,14 +12,14 @@ import {
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
 import VerificationMethodList from '@ac/components/VerificationMethodList';
-import { getSocialCallbackRoute } from '@ac/constants/routes';
+import { getSocialCallbackRoute, securityRoute } from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
 import { accountCenterBasePath } from '@ac/utils/account-center-route';
+import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
 import { accountStorage, sessionStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
-import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
 
 type Props = {
   readonly mode: 'add' | 'remove';
@@ -247,7 +247,7 @@ const SocialFlow = ({ mode }: Props) => {
         action={{
           titleKey: 'action.back',
           onClick: () => {
-            navigate('/', { replace: true });
+            navigate(securityRoute, { replace: true });
           },
         }}
       />
