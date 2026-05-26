@@ -31,6 +31,7 @@ import { parseQueryParameters } from '@/utils';
 import { validateGoogleOneTapCredential } from '@/utils/social-connectors';
 
 import { normalizeExternalWebsiteGoogleOneTapConnectorData } from './utils';
+import { buildErrorHandoffUrl } from '@/utils/native-caps';
 import { getSocialCallbackUri } from '@/utils/social-redirect-override';
 
 const useSocialSignInListener = (connectorId: string) => {
@@ -236,6 +237,22 @@ const useSocialSignInListener = (connectorId: string) => {
       const result = validateAndRestore(state);
 
       if (!result.valid) {
+        // NiceMatrix Bug-A defence layer:
+        // When this SPA is rendered inside ASWebAuthenticationSession / Chrome
+        // Custom Tabs (i.e. an App-launched bind/sign-in flow) and the social
+        // state is missing/expired, navigating to /sign-in leaves the webview
+        // stuck forever — the App can never see a custom-scheme callback to
+        // close the modal. Detect the App context via native-caps metadata
+        // captured at boot, and emit a custom-scheme error URL so the App's
+        // listener captures it and can show a retry UI to the user.
+        //
+        // Outside the App context (PC browsers / Logto Account flows), this
+        // branch is identical to upstream behaviour.
+        const errorUrl = buildErrorHandoffUrl(`session_lost:${result.error}`);
+        if (errorUrl) {
+          window.location.assign(errorUrl);
+          return;
+        }
         setToast(t(`error.${result.error}`));
         navigate('/' + experience.routes.signIn);
         return;

@@ -14,6 +14,7 @@ import useErrorHandler from '@/hooks/use-error-handler';
 import useGlobalRedirectTo from '@/hooks/use-global-redirect-to';
 import useTerms from '@/hooks/use-terms';
 import { searchKeys } from '@/shared/utils/search-parameters';
+import { buildTakeoverUrl } from '@/utils/native-caps';
 import { getLogtoNativeSdk, isNativeWebview } from '@/utils/native-sdk';
 import { generateState, storeState, buildSocialLandingUri } from '@/utils/social-connectors';
 import { storeRedirectContext } from '@/utils/social-redirect-fallback-context';
@@ -59,10 +60,26 @@ const useSocial = () => {
         return;
       }
 
-      const { id: connectorId } = connector;
+      const { id: connectorId, target } = connector;
 
       const state = generateState();
       storeState(state, connectorId);
+
+      // NiceMatrix override (方案 X): if the App declared native_caps and this
+      // target is one the App can take over (wechat / alipay / qq), short-circuit
+      // here. Emit a custom-scheme URL that ASWebAuthenticationSession captures;
+      // the App then runs the native SDK and posts the result to the business
+      // backend. We do NOT call Logto's getSocialAuthorizationUrl, do NOT write
+      // any fallback context, and do NOT redirect through the upstream OAuth
+      // flow — that is the entire point of the takeover.
+      //
+      // Apple / Google / Microsoft / etc. never hit this branch because
+      // buildTakeoverUrl returns null for non-whitelisted targets.
+      const takeoverUrl = buildTakeoverUrl(target, state);
+      if (takeoverUrl) {
+        window.location.assign(takeoverUrl);
+        return;
+      }
 
       const [error, result] = await asyncInvokeSocialSignIn(
         connectorId,
