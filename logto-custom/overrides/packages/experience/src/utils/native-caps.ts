@@ -5,7 +5,7 @@
  * the device can take over via native SDKs by appending ?native_caps=...
  * and ?native_scheme=... to the Logto sign-in URL.
  *
- *   /sign-in?native_caps=wechat,qq&native_scheme=com.easyjoy.<slug>&app_slug=<slug>
+ *   /sign-in?native_caps=wechat,qq&native_scheme=<app-scheme>&app_slug=<slug>
  *
  * The Logto sign-in JS then:
  *   1. hides any wechat / alipay / qq button whose target is NOT in
@@ -23,9 +23,20 @@
  *     (PC browsers, Admin Console, SSO flows are bit-identical to upstream);
  *   - native_caps values must be in a hard-coded WHITELIST
  *     [wechat, alipay, qq] so Apple/Google/Microsoft can't be hijacked;
- *   - native_scheme must match `^com\.easyjoy\.[a-z0-9-]+$` (no http(s),
- *     no javascript:, no other origins);
- *   - native_scheme's slug part must equal app_slug (defence in depth).
+ *   - native_scheme must match a generic RFC-3986 lowercase scheme regex
+ *     and is NOT allowed to be one of a hard-coded DANGEROUS_SCHEMES set
+ *     (http, https, javascript, data, file, blob, about, ws, wss, ftp,
+ *     mailto, tel, vbscript) — this is the only structural restriction;
+ *     scheme body is otherwise App-defined (typically the App's bundle id);
+ *   - native_caps takeover only fires when ALL three params are present
+ *     (caps + scheme + slug) and pass the above checks.
+ *
+ * Multi-layer defence (UNCHANGED by the 2026-05-26 scheme-relax change):
+ *   - Logto OIDC server still enforces redirect_uri against the App's
+ *     applications.redirect_uris allow-list (server-side, source of truth);
+ *   - the social-bind HTTPS bridge endpoint independently re-validates
+ *     `<scheme>://oauth/social-bind` against the App's redirect_uris
+ *     before emitting a handoff page.
  *
  * If ANY check fails, takeover is silently disabled and the upstream
  * code path proceeds. The user always sees a working sign-in.
@@ -39,7 +50,32 @@ const STORAGE_KEY_SLUG = 'nmx_app_slug';
 // MUST NEVER appear here — they go through standard OAuth.
 const TAKEOVER_TARGETS = new Set(['wechat', 'alipay', 'qq']);
 
-const SCHEME_RE = /^com\.easyjoy\.[a-z0-9-]+$/;
+// RFC 3986 scheme grammar restricted to lowercase: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
+// We enforce lowercase to keep audit logs / DB lookups normalised and to align
+// with Logto's OIDC redirect_uri normalisation (scheme is case-insensitive in
+// RFC but stored lowercase by Logto). 1..64 chars caps DoS-style regex input.
+const SCHEME_RE = /^[a-z][a-z0-9+.-]{0,63}$/;
+
+// Schemes we MUST refuse even if format-valid. http/https would create an open
+// redirector. javascript/data/blob/about/file would enable XSS via
+// `location.assign('javascript:...')`. ws/wss/ftp/mailto/tel/vbscript have no
+// legitimate role here and are blocked defensively.
+const DANGEROUS_SCHEMES = new Set([
+  'http',
+  'https',
+  'javascript',
+  'data',
+  'file',
+  'blob',
+  'about',
+  'ws',
+  'wss',
+  'ftp',
+  'mailto',
+  'tel',
+  'vbscript',
+]);
+
 const SLUG_RE = /^[a-z0-9-]+$/;
 
 function parseCsv(value: string | null): string[] {
@@ -114,15 +150,13 @@ export const readValidatedCaps = (): ValidatedCaps | null => {
   // Require ALL three. Partial config is suspect.
   if (!capsRaw || !scheme || !appSlug) return null;
 
-  // Validate scheme.
+  // Validate scheme: lowercase RFC-3986 shape + denylist of dangerous schemes.
+  // (See SCHEME_RE / DANGEROUS_SCHEMES above for rationale.)
   if (!SCHEME_RE.test(scheme)) return null;
+  if (DANGEROUS_SCHEMES.has(scheme)) return null;
 
   // Validate app slug.
   if (!SLUG_RE.test(appSlug)) return null;
-
-  // Defence in depth: scheme suffix must equal app slug.
-  const schemeSlug = scheme.replace(/^com\.easyjoy\./, '');
-  if (schemeSlug !== appSlug) return null;
 
   // Validate caps: every entry must be in whitelist.
   const parsed = parseCsv(capsRaw);
@@ -201,5 +235,6 @@ export const _internals = {
   STORAGE_KEY_SLUG,
   TAKEOVER_TARGETS,
   SCHEME_RE,
+  DANGEROUS_SCHEMES,
   SLUG_RE,
 };
