@@ -87,6 +87,18 @@ export enum ExtraParamsKey {
    * Passed through to PostSignIn webhook payload for per-app login control.
    */
   AppSlug = 'app_slug',
+  /**
+   * [NiceMatrix] Comma-separated list of native social providers the device can take over
+   * via App-side SDKs (e.g. `wechat,alipay,qq`). Whitelisted client-side; structural
+   * pass-through here. See `packages/experience/src/utils/native-caps.ts`.
+   */
+  NativeCaps = 'native_caps',
+  /**
+   * [NiceMatrix] Custom URL scheme of the calling App (e.g. `cn.nicematrix.toolbox`).
+   * Combined with NativeCaps + AppSlug to enable native takeover of social sign-in.
+   * Validated client-side against a denylist of dangerous schemes.
+   */
+  NativeScheme = 'native_scheme',
 }
 
 /** @deprecated Use {@link FirstScreen} instead. */
@@ -119,6 +131,8 @@ export const extraParamsObjectGuard = z
     [ExtraParamsKey.GoogleOneTapCredential]: z.string(),
     [ExtraParamsKey.DeviceRef]: z.string(),
     [ExtraParamsKey.AppSlug]: z.string(),
+    [ExtraParamsKey.NativeCaps]: z.string(),
+    [ExtraParamsKey.NativeScheme]: z.string(),
   })
   .partial() satisfies ToZodObject<ExtraParamsObject>;
 
@@ -134,4 +148,6 @@ export type ExtraParamsObject = Partial<{
   [ExtraParamsKey.GoogleOneTapCredential]: string;
   [ExtraParamsKey.DeviceRef]: string;
   [ExtraParamsKey.AppSlug]: string;
+  [ExtraParamsKey.NativeCaps]: string;
+  [ExtraParamsKey.NativeScheme]: string;
 }>;
