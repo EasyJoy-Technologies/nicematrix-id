@@ -14,6 +14,22 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### `packages/core/src/oidc/grants/token-exchange/index.ts` (2026-05-28)
+
+**Why**: Upstream Logto's RFC 8693 token-exchange grant returns **only `access_token`** — never `id_token` or `refresh_token`. NiceMatrix native social login (wechat/alipay/qq) goes through this grant: backend mints a one-shot `subject_token` via `POST /api/subject-tokens`, the App exchanges it for OIDC tokens. Without a refresh_token the App must redo the entire native social handshake on every AT expiry (wechat `code` is one-shot, alipay token short-lived, qq openid+at fragile); without an id_token, ID-token-based user attribute retrieval breaks. RFC 8693 §2.2.1 explicitly permits both tokens in the response.
+
+**Patch**: `core/src/oidc/grants/token-exchange/index.ts` — near-verbatim copy of upstream 1.39.0 with marked `[NiceMatrix override]` delta blocks:
+
+- destructure `RefreshToken` + `IdToken` constructors from `provider`.
+- issue `refresh_token` when `scope` has `offline_access` **and** `client.grantTypeAllowed(RefreshToken)`; anchor it to the **same `grantId`** as the access token so the standard `grant_type=refresh_token` grant rotates it normally; copy `jkt` / `x5t#S256` onto the RT for public clients (DPoP / mTLS binding), mirroring the auth_code grant.
+- issue `id_token` when `scope` has `openid`, following the upstream refresh-token grant's id_token path verbatim (`filterClaims` → `getRejectedOIDCClaims` → `IdToken` → `conformIdTokenClaims` branch → `at_hash`). No `nonce`/`sid`/`auth_time` (no interactive session in token-exchange — correct).
+- register the requested OIDC scope subset on the grant (idempotent) so id_token + follow-up refresh honour OIDC scopes even in the resource/org branches.
+- response: conditionally spread `id_token` / `refresh_token` — requests without `openid` / `offline_access` get byte-identical upstream output.
+
+**Risk surface**: pure increment, no protocol changes. id_token signing path is copied from Logto's own refresh-token grant (itself a node-oidc-provider fork). subject_token remains one-shot (second exchange → 400 `invalid_grant`).
+
+**Verification** (2026-05-28 prod-1): matrix over no-scope / `openid` / `offline_access` / both / id_token claim validity / RT rotation / subject_token replay-reject — all pass. Container healthy in 8s after `force-recreate`. Backup tag: `nicematrix-logto:pre-token-exchange-rt-idtoken-20260528` (sha `8892ac362d24`). New image: `:token-exchange-rt-idtoken-20260528` (sha `b43890eb2f61`). Full detail: nicematrix-system memory `memory/changelog/logto-token-exchange-rt-idtoken-20260528.md`.
+
 ### `packages/schemas/src/consts/oidc.ts` + `packages/core/src/oidc/utils.ts` (2026-05-27)
 
 **Why**: `oidc-provider` strips any query parameter that is not declared in `extraParams` when redirecting from `/oidc/auth` to the interaction URL (`/sign-in?...`). The Phase B native-caps takeover (mobile App → `cn.<app-scheme>://oauth/wechat` short-circuit) requires three params (`native_caps`, `native_scheme`, `app_slug`) to reach the experience SPA so it can write them into `sessionStorage`. Without this override they were silently dropped by the OIDC library and the user fell back to the upstream WeChat Web sign-in (扫一扫).
