@@ -1,14 +1,16 @@
 /**
- * [NiceMatrix] Override: Fix connectorId extraction in social callback flow.
+ * [NiceMatrix] Override of upstream SocialCallback.
  *
- * Root cause: In App.tsx, `SocialCallback` is rendered via an early return
- * (`if (isSocialCallback) { return <SocialCallback />; }`) OUTSIDE the
- * `<Routes>` wrapper. React Router's `useParams()` only works inside a
- * matching `<Route>`, so `connectorId` comes back as `undefined`, causing
- * the "social sign-in method not enabled" error.
- *
- * Fix: Fall back to parsing `connectorId` from `window.location.pathname`
- * when `useParams()` returns nothing.
+ * Two deltas on top of the upstream 1.40.1 base:
+ *   1. `extractConnectorIdFromPath()` defensive fallback for `connectorId`.
+ *      Upstream 1.40 renders SocialCallback inside <Routes> so `useParams()`
+ *      normally resolves; we keep the path-parse fallback as defence in depth
+ *      (our App.tsx still reaches this component via an `isSocialCallback`
+ *      branch, and a future refactor of that branch must not silently break
+ *      connectorId resolution).
+ *   2. QQ ICP redirect: the verify `redirectUri` must use the connector-specific
+ *      callback origin (`getSocialCallbackOriginOverride`) instead of the raw
+ *      `window.location.origin`, so QQ's token exchange sees the ICP-filed host.
  */
 import { AccountCenterControlValue, type ExperienceSocialConnector } from '@logto/schemas';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -16,23 +18,30 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import PageContext from '@ac/Providers/PageContextProvider/PageContext';
-import { linkSocialIdentity, verifySocialVerification } from '@ac/apis/social';
+import {
+  linkSocialIdentity,
+  replaceSocialIdentity,
+  verifySocialVerification,
+} from '@ac/apis/social';
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
-import { getSocialAddRoute, getSocialCallbackRoute, socialCallbackRoutePrefix } from '@ac/constants/routes';
+import {
+  getSocialAddRoute,
+  getSocialCallbackRoute,
+  getSocialChangeRoute,
+} from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
+import { accountCenterBasePath } from '@ac/utils/account-center-route';
 import { accountStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
-import { accountCenterBasePath } from '@ac/utils/account-center-route';
+import { socialCallbackRoutePrefix } from '@ac/constants/routes';
 import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
 
 /**
  * Extract connectorId from the current URL path as a fallback when useParams()
- * returns nothing (which happens when this component renders outside <Routes>).
- *
- * Expected path: /account/callback/social/:connectorId
+ * returns nothing. Expected path: /account/callback/social/:connectorId
  */
 const extractConnectorIdFromPath = (): string | undefined => {
   const prefix = `${accountCenterBasePath}${socialCallbackRoutePrefix}/`;
@@ -42,7 +51,6 @@ const extractConnectorIdFromPath = (): string | undefined => {
     return undefined;
   }
 
-  // Everything after the prefix, up to the next slash (if any)
   const rest = pathname.slice(prefix.length);
   const id = rest.split('/')[0];
 
@@ -57,13 +65,12 @@ const SocialCallback = () => {
   const navigate = useNavigate();
   const [searchParameters] = useSearchParams();
   const { connectorId: routerConnectorId } = useParams<{ connectorId: string }>();
-
-  // [NiceMatrix] Fallback: extract from URL when useParams fails (early-return rendering path)
+  // [NiceMatrix] Fallback: extract from URL when useParams resolves nothing.
   const connectorId = routerConnectorId || extractConnectorIdFromPath();
-
   const {
     accountCenterSettings,
     experienceSettings,
+    isLoadingExperience,
     refreshUserInfo,
     setToast,
     verificationId,
@@ -71,6 +78,7 @@ const SocialCallback = () => {
   } = useContext(PageContext);
   const verifySocialVerificationRequest = useApi(verifySocialVerification);
   const linkSocialIdentityRequest = useApi(linkSocialIdentity);
+  const replaceSocialIdentityRequest = useApi(replaceSocialIdentity);
   const handleError = useErrorHandler();
   const [startedConnectorId, setStartedConnectorId] = useState<string>();
 
@@ -80,6 +88,7 @@ const SocialCallback = () => {
     [connectorId, experienceSettings?.socialConnectors]
   );
   const connectorName = connector ? getLocalizedConnectorName(connector, language) : undefined;
+  const storedSocialFlow = connectorId ? accountStorage.socialFlow.get(connectorId) : undefined;
 
   const redirectToReverify = useCallback(() => {
     if (!connectorId) {
@@ -89,8 +98,13 @@ const SocialCallback = () => {
     setStartedConnectorId(undefined);
     setVerificationId(undefined);
     setToast(t('account_center.verification.verification_required'));
-    navigate(getSocialAddRoute(connectorId), { replace: true });
-  }, [connectorId, navigate, setToast, setVerificationId, t]);
+    navigate(
+      storedSocialFlow?.mode === 'change'
+        ? getSocialChangeRoute(connectorId)
+        : getSocialAddRoute(connectorId),
+      { replace: true }
+    );
+  }, [connectorId, navigate, setToast, setVerificationId, storedSocialFlow?.mode, t]);
 
   const finishLinkFlow = useCallback(async () => {
     if (!connectorId || !connectorName) {
@@ -114,8 +128,6 @@ const SocialCallback = () => {
     }
 
     setStartedConnectorId(connectorId);
-
-    const storedSocialFlow = accountStorage.socialFlow.get(connectorId);
 
     if (storedSocialFlow?.status !== 'pending') {
       finalizeSocialFlowFailure({
@@ -164,16 +176,18 @@ const SocialCallback = () => {
     };
 
     const completeCallback = async () => {
-      // [NiceMatrix] Include redirectUri in connectorData for connectors that need it
-      // for token exchange (e.g., QQ). Must match the redirectUri used in the authorization request.
+      // [NiceMatrix] QQ ICP redirect: use the connector-specific callback origin
+      // override (if any) so QQ token exchange sees the ICP-filed host; falls back
+      // to window.location.origin for every other connector (= upstream behaviour).
       const callbackOrigin = getSocialCallbackOriginOverride(connectorId) ?? window.location.origin;
-      const redirectUri = `${callbackOrigin}${accountCenterBasePath}${getSocialCallbackRoute(connectorId)}`;
-
+      const redirectUri = `${callbackOrigin}${accountCenterBasePath}${getSocialCallbackRoute(
+        connectorId
+      )}`;
       const [verifyError] = await verifySocialVerificationRequest({
         verificationRecordId: storedSocialFlow.verificationRecordId,
         connectorData: {
-          redirectUri,
           ...Object.fromEntries(searchParameters.entries()),
+          redirectUri,
         },
       });
 
@@ -185,16 +199,29 @@ const SocialCallback = () => {
       accountStorage.socialFlow.setVerified(connectorId, {
         verificationRecordId: storedSocialFlow.verificationRecordId,
         expiresAt: storedSocialFlow.expiresAt,
+        mode: storedSocialFlow.mode,
       });
 
-      const [linkError] = await linkSocialIdentityRequest(
-        verificationId,
-        storedSocialFlow.verificationRecordId
-      );
+      if (storedSocialFlow.mode === 'change') {
+        const [error] = await replaceSocialIdentityRequest(
+          verificationId,
+          storedSocialFlow.verificationRecordId
+        );
 
-      if (linkError) {
-        await handleCallbackError(linkError, false);
-        return;
+        if (error) {
+          await handleCallbackError(error);
+          return;
+        }
+      } else {
+        const [error] = await linkSocialIdentityRequest(
+          verificationId,
+          storedSocialFlow.verificationRecordId
+        );
+
+        if (error) {
+          await handleCallbackError(error, false);
+          return;
+        }
       }
 
       await finishLinkFlow();
@@ -207,21 +234,24 @@ const SocialCallback = () => {
     finishLinkFlow,
     handleError,
     linkSocialIdentityRequest,
+    replaceSocialIdentityRequest,
     navigate,
     redirectToReverify,
     searchParameters,
     setToast,
     startedConnectorId,
+    storedSocialFlow,
     verificationId,
     verifySocialVerificationRequest,
     t,
   ]);
 
-  // [NiceMatrix] Show loading while settings are still being fetched.
-  // Without this guard the first render (accountCenterSettings === undefined)
-  // would briefly flash the "feature_not_enabled" error page.
-  if (!accountCenterSettings || !experienceSettings) {
+  if (isLoadingExperience) {
     return <GlobalLoading />;
+  }
+
+  if (!accountCenterSettings || !experienceSettings) {
+    return <ErrorPage titleKey="error.something_went_wrong" />;
   }
 
   if (

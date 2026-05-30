@@ -8,6 +8,7 @@ import {
   createSocialVerification,
   deleteSocialIdentity,
   linkSocialIdentity,
+  replaceSocialIdentity,
 } from '@ac/apis/social';
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
@@ -22,7 +23,7 @@ import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
 
 type Props = {
-  readonly mode: 'add' | 'remove';
+  readonly mode: 'add' | 'remove' | 'change';
 };
 
 const generateState = () => crypto.randomUUID().replaceAll('-', '');
@@ -46,6 +47,7 @@ const SocialFlow = ({ mode }: Props) => {
   const createSocialVerificationRequest = useApi(createSocialVerification);
   const deleteSocialIdentityRequest = useApi(deleteSocialIdentity);
   const linkSocialIdentityRequest = useApi(linkSocialIdentity);
+  const replaceSocialIdentityRequest = useApi(replaceSocialIdentity);
   const handleError = useErrorHandler();
   const [startedFlowKey, setStartedFlowKey] = useState<string>();
 
@@ -177,6 +179,7 @@ const SocialFlow = ({ mode }: Props) => {
         verificationRecordId: result.verificationRecordId,
         expiresAt: result.expiresAt,
         state,
+        mode: 'add',
       });
 
       sessionStorage.clearRouteRestore();
@@ -194,7 +197,55 @@ const SocialFlow = ({ mode }: Props) => {
       await handleRemoveSuccess();
     };
 
-    void (mode === 'add' ? startAddFlow() : startRemoveFlow());
+    const startChangeFlow = async () => {
+      // Post-callback phase: replace the social identity
+      if (storedSocialFlow?.status === 'verified') {
+        const [error] = await replaceSocialIdentityRequest(
+          verificationId,
+          storedSocialFlow.verificationRecordId
+        );
+
+        if (error) {
+          await handleFlowError(error);
+          return;
+        }
+
+        await handleLinkSuccess();
+        return;
+      }
+
+      // Pre-OAuth phase: start add flow to replace existing identity
+      const state = generateState();
+      const redirectUri = `${window.location.origin}${accountCenterBasePath}${getSocialCallbackRoute(
+        connectorId
+      )}`;
+      const [error, result] = await createSocialVerificationRequest({
+        connectorId,
+        state,
+        redirectUri,
+      });
+
+      if (error || !result) {
+        await handleFlowError(error);
+        return;
+      }
+
+      accountStorage.socialFlow.setPending(connectorId, {
+        verificationRecordId: result.verificationRecordId,
+        expiresAt: result.expiresAt,
+        state,
+        mode: 'change',
+      });
+
+      sessionStorage.clearRouteRestore();
+      window.location.assign(result.authorizationUri);
+    };
+
+    void (mode === 'add'
+      ? startAddFlow()
+      : mode === 'remove'
+        ? startRemoveFlow()
+        : startChangeFlow());
   }, [
     connector,
     connectorId,
@@ -206,6 +257,7 @@ const SocialFlow = ({ mode }: Props) => {
     handleRemoveSuccess,
     hasLinkedConnector,
     linkSocialIdentityRequest,
+    replaceSocialIdentityRequest,
     mode,
     flowKey,
     startedFlowKey,
