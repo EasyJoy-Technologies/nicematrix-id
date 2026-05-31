@@ -3,11 +3,11 @@
 > Source of truth for resuming work after session interruption.
 
 ## Pointer
-- **CURRENT_STAGE:** 6 (Staging deploy + smoke — DONE; awaiting user approval for Stage 7 prod deploy)
-- **LAST_COMPLETED:** Stage 6 — staging on `id-staging.nicematrix.com` running v1.40.1, all smoke checks pass
-- **NEXT_ACTION:** Wait for Xianglin GO, then Stage 7 (prod-1 `46.224.6.74` / `id.nicematrix.com`)
-- **BLOCKER:** Awaiting user GO/NO-GO for prod
-- **LAST_UPDATED:** 2026-05-30 ~16:20 MDT
+- **CURRENT_STAGE:** 8 (docs/memory update — DONE; upgrade complete)
+- **LAST_COMPLETED:** Stage 7 — prod-1 `id.nicematrix.com` running v1.40.1, all smoke checks pass
+- **NEXT_ACTION:** none — upgrade fully shipped (staging + prod-1); prod-3 cn runs no Logto
+- **BLOCKER:** none
+- **LAST_UPDATED:** 2026-05-30 ~20:30 MDT
 
 ## Commits in branch `upgrade/logto-1.40`
 - b027ffe chore: bump logto-upstream to v1.40.1 (core-kit 2.10.0)
@@ -63,5 +63,13 @@
 - Image: `docker tag nicematrix-logto:pre-1.40-backup nicematrix-logto:latest && docker compose up -d --force-recreate logto`.
 - DB: alterations additive/forward-only; restore the pre-upgrade pg_dumpall from same session if needed.
 
+## Stage 7 prod-1 deploy (DONE 2026-05-30 ~20:14 MDT)
+- DB backup: `/root/backups/logto_prod_pre_v1.40.1_20260530_2012.sql` (pg_dumpall, 86MB) on prod-1.
+- Rollback image: `nicematrix-logto:pre-1.40-backup-20260530_2012` (= old `b43890eb2f61` = token-exchange-rt-idtoken-20260528).
+- Image transfer: `docker save v1.40.1 | gzip | ssh ... docker load` (rc=0). In-image verified core 1.40.1 / core-kit 2.10.0.
+- 5 alterations deployed (all up() succeeded) via `database alteration deploy next`.
+- Recreate: `docker compose --env-file /etc/nicematrix/id.env up -d --no-deps --no-build --force-recreate logto`.
+- Smoke (all PASS): root 302, OIDC issuer + 8 endpoints, JWKS 200, Console 200, Account Center 200, avatar+deletion 401, token-exchange grant advertised, native_caps/native_scheme/app_slug in oidc consts + buildLoginPromptUrl, username dot-regex, 48 connector pkgs (3 new + existing), 9 DB connectors, 3 M2M apps, branding logo+#6139F6, backend api.nicematrix.com/health 200, 4 new tables + 2 new columns.
+
 ## Outstanding decisions
-- (none — all clear; pending user GO for Stage 7 prod)
+- (none — upgrade complete; staging + prod-1 both on v1.40.1)

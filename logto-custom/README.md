@@ -18,7 +18,7 @@ Do not patch built dist bundles. Customize at source level only.
 
 **Why**: Upstream Logto's RFC 8693 token-exchange grant returns **only `access_token`** — never `id_token` or `refresh_token`. NiceMatrix native social login (wechat/alipay/qq) goes through this grant: backend mints a one-shot `subject_token` via `POST /api/subject-tokens`, the App exchanges it for OIDC tokens. Without a refresh_token the App must redo the entire native social handshake on every AT expiry (wechat `code` is one-shot, alipay token short-lived, qq openid+at fragile); without an id_token, ID-token-based user attribute retrieval breaks. RFC 8693 §2.2.1 explicitly permits both tokens in the response.
 
-**Patch**: `core/src/oidc/grants/token-exchange/index.ts` — near-verbatim copy of upstream 1.39.0 with marked `[NiceMatrix override]` delta blocks:
+**Patch**: `core/src/oidc/grants/token-exchange/index.ts` — near-verbatim copy of upstream 1.40.1 with marked `[NiceMatrix override]` delta blocks:
 
 - destructure `RefreshToken` + `IdToken` constructors from `provider`.
 - issue `refresh_token` when `scope` has `offline_access` **and** `client.grantTypeAllowed(RefreshToken)`; anchor it to the **same `grantId`** as the access token so the standard `grant_type=refresh_token` grant rotates it normally; copy `jkt` / `x5t#S256` onto the RT for public clients (DPoP / mTLS binding), mirroring the auth_code grant.
@@ -37,7 +37,7 @@ Do not patch built dist bundles. Customize at source level only.
 **Patch**:
 
 - `schemas/src/consts/oidc.ts` — add `NativeCaps='native_caps'` + `NativeScheme='native_scheme'` to the `ExtraParamsKey` enum, the `extraParamsObjectGuard`, and the `ExtraParamsObject` type. (`AppSlug` / `DeviceRef` were already overridden for earlier features.)
-- `core/src/oidc/utils.ts` — near-verbatim copy of upstream 1.39.0 file with a single delta block inside `buildLoginPromptUrl()`: 3 additional `appendExtraParam(ExtraParamsKey.AppSlug | NativeCaps | NativeScheme)` calls so the params are appended to the `/sign-in?...` URL. File header carries a `[NiceMatrix override]` marker for upstream-sync diffs.
+- `core/src/oidc/utils.ts` — near-verbatim copy of upstream 1.40.1 file with a single delta block inside `buildLoginPromptUrl()`: 3 additional `appendExtraParam(ExtraParamsKey.AppSlug | NativeCaps | NativeScheme)` calls so the params are appended to the `/sign-in?...` URL. File header carries a `[NiceMatrix override]` marker for upstream-sync diffs.
 
 **Risk surface**: zero protocol impact. `oidc-provider` treats unknown `extraParams` as pass-through, they never enter token signing or redirect_uri validation. PC entries that don't supply the three params see byte-identical behaviour to upstream (verified by Check B in deployment notes). Logto OIDC server still strictly enforces `applications.redirect_uris` (multi-layer defence).
 
