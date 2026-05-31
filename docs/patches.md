@@ -10,6 +10,11 @@ We now use **source-based customization** only.
 
 No dist bundle patching is used in the active workflow.
 
+> Source overrides are listed below. **Runtime tenant config** (DB state in
+> `logto_configs`, e.g. id_token extended claims) is NOT here — see
+> [`runtime-tenant-config.md`](./runtime-tenant-config.md). Re-apply those after
+> any tenant re-seed.
+
 ## Active customizations
 
 1. Username regex allows dot (`.`) in the middle:
