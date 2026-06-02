@@ -14,6 +14,17 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### `packages/core/src/routes/admin-user/by-identity.ts` + `index.ts` (2026-06-02)
+
+**Why**: Logto's Management API search covers only scalar columns (`id`, `primaryEmail`, `primaryPhone`, `username`, `name`) - never the `identities` jsonb. The internal `findUserByIdentity(target, userId)` (`queries/user.ts`) does the exact `identities #>> '{target,userId}'` lookup the experience/account flows use, but it was never exposed as a route. The NiceMatrix backend needs this reverse lookup so the **cross-region shared Logto user store is the single source of truth** for native social login (wechat/alipay/qq). Without it, each region kept a local `social_identity` ledger that split-brained (register region A, login region B -> miss -> duplicate Logto account + 502; the focc class of incident).
+
+**Patch**:
+
+- `admin-user/by-identity.ts` (new) - `GET /api/users/by-identity?target=<wechat|alipay|qq|apple|azuread>&userId=<value>`. Calls `queries.users.findUserByIdentity`. Target **allowlist** (no arbitrary jsonb key probing). Read-only. `200 { id, name, avatar }` on hit, `404` (`user.identity_not_exist`) on miss, `400` (`request.invalid_input`) on unknown target.
+- `admin-user/index.ts` (override of upstream wiring) - registers `adminUserByIdentityRoutes` **before** `adminUserBasicsRoutes` so the static `/users/by-identity` path wins the koa-router match over `/users/:userId`.
+
+**Risk surface**: pure increment, no existing route touched. Mounted on `managementRouter`, which already enforces M2M auth + `PredefinedScope.All` (koa-auth) - no new auth code. Real Logto ids are 12-char nanoids that never equal the literal `by-identity`, so the ordering is belt-and-braces. Unit test: `logto-custom/tests/test-by-identity.js` (5 cases). Image rebuild required to deploy (id-staging -> prod-1). Part of the 2026-06-02 native-login single-source-of-truth plan (Phase A).
+
 ### `packages/core/src/oidc/grants/token-exchange/index.ts` (2026-05-28)
 
 **Why**: Upstream Logto's RFC 8693 token-exchange grant returns **only `access_token`** — never `id_token` or `refresh_token`. NiceMatrix native social login (wechat/alipay/qq) goes through this grant: backend mints a one-shot `subject_token` via `POST /api/subject-tokens`, the App exchanges it for OIDC tokens. Without a refresh_token the App must redo the entire native social handshake on every AT expiry (wechat `code` is one-shot, alipay token short-lived, qq openid+at fragile); without an id_token, ID-token-based user attribute retrieval breaks. RFC 8693 §2.2.1 explicitly permits both tokens in the response.
