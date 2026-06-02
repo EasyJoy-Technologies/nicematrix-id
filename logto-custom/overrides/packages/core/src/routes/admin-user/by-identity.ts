@@ -66,7 +66,7 @@ export default function adminUserByIdentityRoutes<T extends ManagementApiRouter>
       }),
       status: [200, 400, 404],
     }),
-    async (ctx, next) => {
+    async (ctx) => {
       const { target, userId } = ctx.guard.query;
 
       if (!allowedTargets.has(target)) {
@@ -89,7 +89,13 @@ export default function adminUserByIdentityRoutes<T extends ManagementApiRouter>
         avatar: user.avatar ?? null,
       };
 
-      return next();
+      // IMPORTANT: do NOT call next(). koa-router also matches `by-identity`
+      // against the later `/users/:userId` route (registered in basics.ts);
+      // cascading via next() would run findUserById('by-identity') and
+      // overwrite this 200 with a 404 entity.not_found. The miss/400 branches
+      // throw before reaching here, so only the hit path needed this guard.
+      // koa-guard's response validation runs in the wrapper after this handler
+      // returns, independent of next().
     }
   );
 }

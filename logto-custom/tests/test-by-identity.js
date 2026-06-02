@@ -17,6 +17,12 @@
  * wiring + zod guard are exercised by the id-staging integration smoke
  * (documented in the deploy notes), not here.
  *
+ * REGRESSION NOTE (2026-06-02): the HIT path must NOT call next(). koa-router
+ * also matches `by-identity` against the later `/users/:userId` route, so a
+ * trailing next() cascades into findUserById('by-identity') and clobbers the
+ * 200 with a 404 entity.not_found. This pure test can't model koa-router
+ * cascade — the id-staging smoke (hit→200) is the mandatory guard for it.
+ *
  * Run: node logto-custom/tests/test-by-identity.js
  */
 
