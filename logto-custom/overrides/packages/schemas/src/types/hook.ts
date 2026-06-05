@@ -46,6 +46,8 @@ export type InteractionApiMetadata = {
   deviceRef?: string;
   /** [NiceMatrix] The app slug passed via OIDC extra params. */
   appSlug?: string;
+  /** [NiceMatrix] The deployment region (intl|cn) passed via OIDC extra params. */
+  region?: string;
 };
 
 type InteractionApiContextPayload = {
@@ -57,6 +59,8 @@ type InteractionApiContextPayload = {
   deviceRef?: string;
   /** [NiceMatrix] The app slug passed via OIDC extra params. */
   appSlug?: string;
+  /** [NiceMatrix] The deployment region (intl|cn) passed via OIDC extra params. */
+  region?: string;
 };
 
 export type InteractionHookEventPayload = {

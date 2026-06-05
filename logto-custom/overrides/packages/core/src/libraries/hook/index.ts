@@ -125,7 +125,7 @@ export const createHookLibrary = (queries: Queries) => {
       return;
     }
 
-    const { interactionEvent, sessionId, applicationId, userIp, userAgent, deviceRef, appSlug } = metadata;
+    const { interactionEvent, sessionId, applicationId, userIp, userAgent, deviceRef, appSlug, region } = metadata;
 
     const found = await findAllHooks();
 
@@ -169,9 +169,10 @@ export const createHookLibrary = (queries: Queries) => {
         userAgent,
         userId,
         userIp,
-        // [NiceMatrix] Include device_ref and app_slug in webhook payload
+        // [NiceMatrix] Include device_ref, app_slug and region in webhook payload
         deviceRef,
         appSlug,
+        region,
         user: user && pick(user, ...userInfoSelectFields),
         application: application && pick(application, 'id', 'type', 'name', 'description'),
       } satisfies BetterOmit<InteractionHookEventPayload, 'hookId'>;

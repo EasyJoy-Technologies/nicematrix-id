@@ -56,9 +56,10 @@ export function koaExperienceInteractionHooks<
       userAgent,
       applicationId: conditionalString(interactionDetails.params.client_id),
       sessionId: interactionDetails.jti,
-      // [NiceMatrix] Pass device_ref and app_slug from OIDC extra params to webhook payload
+      // [NiceMatrix] Pass device_ref, app_slug and region from OIDC extra params to webhook payload
       deviceRef: conditionalString(interactionDetails.params.device_ref),
       appSlug: conditionalString(interactionDetails.params.app_slug),
+      region: conditionalString(interactionDetails.params.region),
     };
     const interactionHookContext = new InteractionHookContextManager({
       ...interactionApiMetadata,

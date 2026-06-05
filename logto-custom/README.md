@@ -14,6 +14,22 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### `region` OIDC ExtraParam → PostSignIn webhook (2026-06-04)
+
+**Why**: Cross-region device routing (S3a of nicematrix-backend `docs/_plans/2026-06-04_cross-region-coordination-and-device-routing.md`). After device_ref became deterministic + region-global, a roaming device exists in BOTH regions' `devices` tables and one Logto application serves cn+intl, so a PostSignIn webhook receiver cannot tell which backend owns the sign-in. The client now self-reports `region` (`intl`|`cn`) as an OIDC ExtraParam; the SAME PostSignIn event is fanned out to every registered hook (prod-1 + prod-3) and each backend processes only its own region (`region` self-filter in `admin-core/webhook.js`), 200-ignoring the rest. Missing region defaults to `intl` (historical single-hook behavior).
+
+**Patch** (same 6-file ExtraParam chain as `device_ref`/`app_slug`; all marked `[NiceMatrix]`):
+- `schemas/src/consts/oidc.ts` — add `Region='region'` to `ExtraParamsKey` enum + `extraParamsObjectGuard` + `ExtraParamsObject` type.
+- `schemas/src/types/hook.ts` — `region?` on `InteractionApiMetadata` + `InteractionApiContextPayload`.
+- `core/src/libraries/hook/context-manager.ts` — `region?` on `InteractionHookMetadata`.
+- `core/src/libraries/hook/index.ts` — destructure `region` from metadata + include in payload.
+- `core/src/routes/experience/middleware/koa-experience-interaction-hooks.ts` — extract `interactionDetails.params.region`.
+- `core/src/routes/interaction/middleware/koa-interaction-hooks.ts` — same (legacy interaction route).
+
+**Note**: `region` flows ONLY via `interactionDetails.params` → webhook (like `device_ref`), so `core/src/oidc/utils.ts` `buildLoginPromptUrl()` needs NO change (that file only appends params the experience SPA must read). `extraParams: Object.values(ExtraParamsKey)` in `core/src/oidc/init.ts` auto-registers the new enum value — zero OIDC-layer change.
+
+**Risk surface**: zero protocol impact (unknown extraParams are pass-through; never enter token signing / redirect_uri validation). Clients that omit `region` behave exactly as before. Detail: `docs/custom-extra-params.md`.
+
 ### `packages/core/src/routes/admin-user/by-identity.ts` + `index.ts` (2026-06-02)
 
 **Why**: Logto's Management API search covers only scalar columns (`id`, `primaryEmail`, `primaryPhone`, `username`, `name`) - never the `identities` jsonb. The internal `findUserByIdentity(target, userId)` (`queries/user.ts`) does the exact `identities #>> '{target,userId}'` lookup the experience/account flows use, but it was never exposed as a route. The NiceMatrix backend needs this reverse lookup so the **cross-region shared Logto user store is the single source of truth** for native social login (wechat/alipay/qq). Without it, each region kept a local `social_identity` ledger that split-brained (register region A, login region B -> miss -> duplicate Logto account + 502; the focc class of incident).

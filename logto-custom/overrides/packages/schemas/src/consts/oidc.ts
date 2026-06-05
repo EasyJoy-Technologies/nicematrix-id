@@ -99,6 +99,15 @@ export enum ExtraParamsKey {
    * Validated client-side against a denylist of dangerous schemes.
    */
   NativeScheme = 'native_scheme',
+  /**
+   * [NiceMatrix] The deployment region this sign-in belongs to (`intl` | `cn`).
+   * Self-reported by the client (= its build flavor / the API base it talks to).
+   * Passed through to the PostSignIn webhook payload so that, when the SAME
+   * event is fanned out to both regions' hooks (prod-1 + prod-3), each backend
+   * processes ONLY its own region and ignores the rest. See the cross-region
+   * device-routing design (§6) and `packages/core/src/libraries/hook/index.ts`.
+   */
+  Region = 'region',
 }
 
 /** @deprecated Use {@link FirstScreen} instead. */
@@ -133,6 +142,7 @@ export const extraParamsObjectGuard = z
     [ExtraParamsKey.AppSlug]: z.string(),
     [ExtraParamsKey.NativeCaps]: z.string(),
     [ExtraParamsKey.NativeScheme]: z.string(),
+    [ExtraParamsKey.Region]: z.string(),
   })
   .partial() satisfies ToZodObject<ExtraParamsObject>;
 
@@ -150,4 +160,5 @@ export type ExtraParamsObject = Partial<{
   [ExtraParamsKey.AppSlug]: string;
   [ExtraParamsKey.NativeCaps]: string;
   [ExtraParamsKey.NativeScheme]: string;
+  [ExtraParamsKey.Region]: string;
 }>;

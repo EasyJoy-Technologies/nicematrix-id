@@ -127,6 +127,8 @@ type InteractionHookMetadata = {
   deviceRef?: string;
   /** [NiceMatrix] The app slug passed via OIDC extra params. */
   appSlug?: string;
+  /** [NiceMatrix] The deployment region (intl|cn) passed via OIDC extra params. */
+  region?: string;
 } & InteractionApiMetadata;
 
 /**
