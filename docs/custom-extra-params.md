@@ -67,9 +67,15 @@ OIDC 授权请求 ?device_ref=UUID&app_slug=my-app&region=cn
 - 地址: `https://api.nicematrix.com/v1/webhook/logto`
 - 签名密钥: 后端 `.env` → `LOGTO_WEBHOOK_SIGNING_KEY`
 
-### Region routing activation（S3c，按需一键激活）
+### Region routing activation（S3c）— ✅ 已激活 2026-06-08
 
-今天 cn = 100% native（prod-3 本地强制 `applyNativeLoginControl`），托管登录仅 intl 走现有单 prod-1 webhook，故第二个 hook **暂不注册**、prod-1 hook **暂不打 region 标签**；`region` 参数 + 后端自筛 + §6.5 路由能力均已就位（模型先立）。当 cn（prod-3）真正启用托管登录（邮箱/短信/social-web）时，按下列**两步**激活（同一 Logto，跨境共用 `id.nicematrix.com`；hooks 在 `admin` tenant）：
+> **状态：已激活（2026-06-08 11:28 MDT，Xianglin 批准）。** prod-1 hook `9aiz0tmuqb834vpu1nkcx` 已打 `intl` 标签；第二个 cn hook `3wswwkcjxlh4snzrwcc3t`（PostSignIn → `https://apiv3.ej-mobile.cn/v1/webhook/logto`，`x-nicematrix-region: cn`）已注册+enabled，签名密钥 = prod-3 `LOGTO_WEBHOOK_SIGNING_KEY`（字节一致校验过）。激活后验证：prod-3 接受签名 `region:cn` 事件（零变更探针 → `app not found`）、丢弃 `region:intl`（`other-region, self:cn`）、坏签名 401 fail-closed；prod-1 镜像验证（接受 intl、丢弃 cn）；Logto healthy + OIDC 200。
+>
+> **重要（native vs 托管管线）**：native 社交登录（wechat/qq/alipay）走 RFC-8693 token-exchange grant，**不触发 PostSignIn webhook**（`oidc/grants/token-exchange/index.ts` 零 hook 引用）；设备管控由后端同步 `applyNativeLoginControl` 在 native 路径内完成。本 hook **只服务托管页登录**（interaction/experience 流，`koa-experience-interaction-hooks.ts` 组装 `deviceRef`/`region` payload）。故在 cn 真正上托管页登录前，cn hook 不会收到有机事件（但管线已就绪，上线即生效，无需再改）。
+>
+> 以下为当时执行的两步步骤（保留作轨迹 / 回滚参考）。回滚 = 删除 cn hook `3wswwkcjxlh4snzrwcc3t` + 清除 prod-1 hook 的 `x-nicematrix-region` header（恢复 region-agnostic）。
+
+原设计：今天 cn = 100% native（prod-3 本地强制 `applyNativeLoginControl`），托管登录仅 intl 走现有单 prod-1 webhook。两步激活（同一 Logto，跨境共用 `id.nicematrix.com`；hooks 在 `admin` tenant）：
 
 **步骤 1 — 给现有 prod-1 hook 打 intl 标签**（先做，避免给 cn hook 前出现“两 hook 都收 intl 事件被各自处理两次”窗口）：
 ```sql
