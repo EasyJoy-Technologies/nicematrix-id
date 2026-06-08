@@ -14,6 +14,17 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### PostSignIn region routing (Logto-side fan-out filter) (2026-06-08)
+
+**Why**: Cross-region design §6.5 (nicematrix-backend `docs/_plans/2026-06-04_cross-region-coordination-and-device-routing.md`). The `region` ExtraParam (below) lets each backend self-filter (S3b), but by default the SAME PostSignIn event is still fanned out to BOTH region hooks (the non-owning backend just drops it with `200 ignored`). That means an intl sign-in event still leaves the network toward prod-3 (and vice-versa) — functionally correct but not the cleanest data residency. This override lets a hook declare the region it owns so Logto only delivers matching events; the data of the other region is never sent out.
+
+**Patch** (single file, `[NiceMatrix]` marked):
+- `core/src/libraries/hook/index.ts` — `triggerInteractionHooks` PostSignIn fan-out filter now also checks `hookMatchesRegion(hook, region)`. A hook is region-tagged via `config.headers['x-nicematrix-region'] = 'intl' | 'cn'` (open `z.record(z.string())` header map → survives the config read guard, no schema change needed; also harmlessly forwarded as an HTTP header the backend ignores). Matching mirrors the backend exactly: payload `region` absent/empty → `intl`; `cn`/`intl` → that region; unknown → matches no tag. **Untagged hook = region-agnostic = receives ALL events (historical single-hook behavior; prod-1 stays untagged so its delivery is byte-identical to today).** Only PostSignIn is routed; data hooks (`User.Deleted`) stay global.
+
+**Activation (S3c, decoupled from this override)**: this override ships the *capability*; routing only takes effect once a hook is tagged. The exact tag-prod-1-intl + register-prod-3-cn-hook steps are in `docs/custom-extra-params.md` §"Region routing activation (S3c)". Until cn goes live on hosted login, prod-1 stays untagged and no cn hook exists → zero behavior change.
+
+**Risk surface**: zero impact when no hook is tagged (the only state today). Pure increment to the existing PostSignIn fan-out filter; non-PostSignIn interaction events and data hooks are untouched.
+
 ### `region` OIDC ExtraParam → PostSignIn webhook (2026-06-04)
 
 **Why**: Cross-region device routing (S3a of nicematrix-backend `docs/_plans/2026-06-04_cross-region-coordination-and-device-routing.md`). After device_ref became deterministic + region-global, a roaming device exists in BOTH regions' `devices` tables and one Logto application serves cn+intl, so a PostSignIn webhook receiver cannot tell which backend owns the sign-in. The client now self-reports `region` (`intl`|`cn`) as an OIDC ExtraParam; the SAME PostSignIn event is fanned out to every registered hook (prod-1 + prod-3) and each backend processes only its own region (`region` self-filter in `admin-core/webhook.js`), 200-ignoring the rest. Missing region defaults to `intl` (historical single-hook behavior).

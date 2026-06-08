@@ -24,6 +24,10 @@ import {
   type HookContext,
 } from './context-manager.js';
 import { generateHookTestPayload, parseResponse, sendWebhookRequest } from './utils.js';
+// [NiceMatrix] Cross-region design §6.5 — Logto-side PostSignIn region routing.
+// Pure, dependency-free predicate extracted to its own module so it can be
+// unit-tested standalone (see logto-custom/tests/test-region-routing.js).
+import { hookMatchesRegion } from './region-routing.js';
 
 type BetterOmit<T, Ignore> = {
   [key in keyof T as key extends Ignore ? never : key]: T[key];
@@ -150,8 +154,13 @@ export const createHookLibrary = (queries: Queries) => {
       const hookEvent = event ?? defaultHookEvent;
 
       const hooks = found.filter(
-        ({ event, events, enabled }) =>
-          enabled && (events.length > 0 ? events.includes(hookEvent) : event === hookEvent) // For backward compatibility
+        (hook) =>
+          hook.enabled &&
+          (hook.events.length > 0 ? hook.events.includes(hookEvent) : hook.event === hookEvent) && // For backward compatibility
+          // [NiceMatrix] §6.5 region routing: PostSignIn hooks tagged with a
+          // region only receive matching events; untagged hooks receive all.
+          // Non-PostSignIn interaction events are never region-filtered.
+          (hookEvent !== 'PostSignIn' || hookMatchesRegion(hook, region))
       );
 
       if (hooks.length === 0) {
