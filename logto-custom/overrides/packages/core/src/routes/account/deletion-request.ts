@@ -47,43 +47,52 @@ const DEFAULT_GRACE_WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
 // Confirmation token lifetime (email link must be clicked within this).
 const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
-// NOTE: slonik (via @silverhand/slonik's default `createInterceptorsPreset()`,
-// see packages/core/src/env-set/create-pool.ts) decodes Postgres `timestamptz`
-// columns to a **millisecond epoch number**, NOT a JS `Date`. These fields are
-// typed as `number` so the response mapping (`toIso`) and the expiry comparison
-// in the confirm handler stay truthful. Declaring them as `Date` here was the
-// root cause of the GET 500: the response guard's `z.date()` rejected the number
-// and koa-guard threw `ResponseBodyError`.
+// NOTE: the slonik pool used by Logto core (built with @silverhand/slonik's
+// default `createInterceptorsPreset()`, see packages/core/src/env-set/create-pool.ts)
+// applies TWO transforms that this route MUST honor — both verified at runtime
+// against the deployed image + staging DB:
+//   1. Field-name interceptor: snake_case columns -> camelCase keys
+//      (`requested_at` -> `requestedAt`, `confirmation_token_expires_at`
+//      -> `confirmationTokenExpiresAt`, ...). Reading the snake_case key off the
+//      row yields `undefined`.
+//   2. Type-parser preset: `timestamptz` -> millisecond-epoch **number**, NOT a
+//      JS `Date`.
+// The original code combined both bugs: it read snake_case keys (undefined) and
+// declared the response guard as `z.date()`. On GET, the guard saw `undefined`
+// for every date field -> koa-guard threw `ResponseBodyError` -> 500. The fields
+// are therefore typed camelCase + `number` here so the row access, the response
+// mapping (`toIso`), and the confirm-handler expiry check all stay truthful.
 type DeletionRequestRow = {
   id: string;
-  tenant_id: string;
-  user_id: string;
+  tenantId: string;
+  userId: string;
   status: string;
   reason: string | null;
-  requested_at: number;
-  confirmed_at: number | null;
-  scheduled_at: number | null;
-  cancelled_at: number | null;
-  executed_at: number | null;
-  confirmation_token: string | null;
-  confirmation_token_expires_at: number | null;
+  requestedAt: number;
+  confirmedAt: number | null;
+  scheduledAt: number | null;
+  cancelledAt: number | null;
+  executedAt: number | null;
+  confirmationToken: string | null;
+  confirmationTokenExpiresAt: number | null;
 };
 
 // Convert a slonik-decoded `timestamptz` (ms epoch number) to an ISO-8601 string
 // for the JSON response, matching the Account Center client contract (which
-// types these fields as `string`). Accepts Date/string too so it stays correct
-// even if a future type-parser change hands us a different representation.
-const toIso = (value: number | Date | string | null): string | null =>
-  value === null ? null : new Date(value).toISOString();
+// types these fields as `string`). Null/undefined-safe; also accepts Date/string
+// so it stays correct even if a future type-parser change hands a different
+// representation.
+const toIso = (value: number | Date | string | null | undefined): string | null =>
+  value === null || value === undefined ? null : new Date(value).toISOString();
 
 const rowToResponse = (row: DeletionRequestRow) => ({
   id: row.id,
   status: row.status,
   reason: row.reason,
-  requested_at: toIso(row.requested_at),
-  confirmed_at: toIso(row.confirmed_at),
-  scheduled_at: toIso(row.scheduled_at),
-  cancelled_at: toIso(row.cancelled_at),
+  requested_at: toIso(row.requestedAt),
+  confirmed_at: toIso(row.confirmedAt),
+  scheduled_at: toIso(row.scheduledAt),
+  cancelled_at: toIso(row.cancelledAt),
 });
 
 // We wrap the optional deletion-request row in an envelope so that an
@@ -262,8 +271,9 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       }
 
       if (
-        row.confirmation_token_expires_at !== null &&
-        row.confirmation_token_expires_at < Date.now()
+        row.confirmationTokenExpiresAt !== null &&
+        row.confirmationTokenExpiresAt !== undefined &&
+        row.confirmationTokenExpiresAt < Date.now()
       ) {
         throw new RequestError({
           code: 'user.deletion_request_token_expired',
