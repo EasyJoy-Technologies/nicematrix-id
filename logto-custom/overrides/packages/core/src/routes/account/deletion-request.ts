@@ -47,29 +47,43 @@ const DEFAULT_GRACE_WINDOW_MS = 15 * 24 * 60 * 60 * 1000;
 // Confirmation token lifetime (email link must be clicked within this).
 const CONFIRMATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
+// NOTE: slonik (via @silverhand/slonik's default `createInterceptorsPreset()`,
+// see packages/core/src/env-set/create-pool.ts) decodes Postgres `timestamptz`
+// columns to a **millisecond epoch number**, NOT a JS `Date`. These fields are
+// typed as `number` so the response mapping (`toIso`) and the expiry comparison
+// in the confirm handler stay truthful. Declaring them as `Date` here was the
+// root cause of the GET 500: the response guard's `z.date()` rejected the number
+// and koa-guard threw `ResponseBodyError`.
 type DeletionRequestRow = {
   id: string;
   tenant_id: string;
   user_id: string;
   status: string;
   reason: string | null;
-  requested_at: Date;
-  confirmed_at: Date | null;
-  scheduled_at: Date | null;
-  cancelled_at: Date | null;
-  executed_at: Date | null;
+  requested_at: number;
+  confirmed_at: number | null;
+  scheduled_at: number | null;
+  cancelled_at: number | null;
+  executed_at: number | null;
   confirmation_token: string | null;
-  confirmation_token_expires_at: Date | null;
+  confirmation_token_expires_at: number | null;
 };
+
+// Convert a slonik-decoded `timestamptz` (ms epoch number) to an ISO-8601 string
+// for the JSON response, matching the Account Center client contract (which
+// types these fields as `string`). Accepts Date/string too so it stays correct
+// even if a future type-parser change hands us a different representation.
+const toIso = (value: number | Date | string | null): string | null =>
+  value === null ? null : new Date(value).toISOString();
 
 const rowToResponse = (row: DeletionRequestRow) => ({
   id: row.id,
   status: row.status,
   reason: row.reason,
-  requested_at: row.requested_at,
-  confirmed_at: row.confirmed_at,
-  scheduled_at: row.scheduled_at,
-  cancelled_at: row.cancelled_at,
+  requested_at: toIso(row.requested_at),
+  confirmed_at: toIso(row.confirmed_at),
+  scheduled_at: toIso(row.scheduled_at),
+  cancelled_at: toIso(row.cancelled_at),
 });
 
 // We wrap the optional deletion-request row in an envelope so that an
@@ -83,10 +97,10 @@ const responseGuard = z.object({
       id: z.string(),
       status: z.string(),
       reason: z.string().nullable(),
-      requested_at: z.date(),
-      confirmed_at: z.date().nullable(),
-      scheduled_at: z.date().nullable(),
-      cancelled_at: z.date().nullable(),
+      requested_at: z.string(),
+      confirmed_at: z.string().nullable(),
+      scheduled_at: z.string().nullable(),
+      cancelled_at: z.string().nullable(),
     })
     .nullable(),
 });
@@ -138,7 +152,8 @@ export default function deletionRequestRoutes<T extends UserRouter>(
         id: z.string(),
         status: z.string(),
         confirmation_token: z.string(),
-        confirmation_token_expires_at: z.date(),
+        // ISO-8601 string (see DeletionRequestRow note); matches client contract.
+        confirmation_token_expires_at: z.string(),
       }),
       status: [200, 401, 409],
     }),
@@ -197,7 +212,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
         id,
         status: 'awaiting_confirmation',
         confirmation_token: token,
-        confirmation_token_expires_at: tokenExpiresAt,
+        confirmation_token_expires_at: tokenExpiresAt.toISOString(),
       };
       return next();
     }
@@ -213,7 +228,8 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       response: z.object({
         id: z.string(),
         status: z.string(),
-        scheduled_at: z.date(),
+        // ISO-8601 string (see DeletionRequestRow note); matches client contract.
+        scheduled_at: z.string(),
       }),
       status: [200, 400, 401, 404],
     }),
@@ -245,7 +261,10 @@ export default function deletionRequestRoutes<T extends UserRouter>(
         });
       }
 
-      if (row.confirmation_token_expires_at && row.confirmation_token_expires_at < new Date()) {
+      if (
+        row.confirmation_token_expires_at !== null &&
+        row.confirmation_token_expires_at < Date.now()
+      ) {
         throw new RequestError({
           code: 'user.deletion_request_token_expired',
           status: 400,
@@ -267,7 +286,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       ctx.body = {
         id: row.id,
         status: 'pending',
-        scheduled_at: scheduledAt,
+        scheduled_at: scheduledAt.toISOString(),
       };
       return next();
     }
