@@ -89,9 +89,13 @@ type Props = {
 };
 
 const DeletionSection = ({ onRequestChanged }: Props) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { verificationId, setVerificationId, setToast } = useContext(PageContext);
+  const { verificationId, setVerificationId, setToast, userInfo } = useContext(PageContext);
+  // Users without a primary email skip the email-confirmation step entirely
+  // (the request goes straight to the 15-day grace window), so the modal copy
+  // and the success toast must not mention an email. See apis/deletion.ts.
+  const hasEmail = Boolean(userInfo?.primaryEmail);
 
   const getRequest = useApi(getDeletionRequest, { silent: true });
   const createRequest = useApi(createDeletionRequest, { silent: true });
@@ -145,7 +149,7 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
       return;
     }
     setIsSubmitting(true);
-    const [err] = await createRequest(verificationId, reason.trim() || undefined);
+    const [err, data] = await createRequest(verificationId, reason.trim() || undefined);
     setIsSubmitting(false);
 
     if (err) {
@@ -159,10 +163,23 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
     }
 
     setIsModalOpen(false);
-    setToast(t('account_center.deletion.create_success'));
+    // Two server outcomes (see apis/deletion.ts): users without a primary
+    // email skip the confirmation email entirely and land directly in the
+    // 15-day grace window — the "check your email" copy would be wrong (and
+    // confusing) for them, so show the grace-window copy instead.
+    if (data?.status === 'pending') {
+      setToast(
+        t('account_center.deletion.create_success_no_email', {
+          date: formatDate(data.scheduled_at, i18n.language),
+        })
+      );
+    } else {
+      setToast(t('account_center.deletion.create_success'));
+    }
     await refresh();
   }, [
     createRequest,
+    i18n.language,
     isSubmitting,
     reason,
     refresh,
@@ -239,7 +256,9 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
                   {t('account_center.deletion.step_confirm_title')}
                 </div>
                 <div className={styles.modalWarning}>
-                  {t('account_center.deletion.step_confirm_warning')}
+                  {hasEmail
+                    ? t('account_center.deletion.step_confirm_warning')
+                    : t('account_center.deletion.step_confirm_warning_no_email')}
                 </div>
                 <label className={styles.modalWarning}>
                   {t('account_center.deletion.reason_label')}

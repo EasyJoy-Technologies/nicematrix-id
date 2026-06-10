@@ -17,12 +17,25 @@ export type DeletionRequest = {
   cancelled_at: string | null;
 };
 
-export type CreateDeletionRequestResponse = {
-  id: string;
-  status: 'awaiting_confirmation';
-  confirmation_token: string;
-  confirmation_token_expires_at: string;
-};
+/**
+ * POST /deletion-request returns one of two shapes, discriminated by `status`:
+ * - 'awaiting_confirmation': user has a primary email; a confirmation link
+ *   is emailed and must be clicked within 24h.
+ * - 'pending': user has NO primary email, so the email-confirmation step is
+ *   skipped and the request goes straight into the 15-day grace window.
+ */
+export type CreateDeletionRequestResponse =
+  | {
+      id: string;
+      status: 'awaiting_confirmation';
+      confirmation_token: string;
+      confirmation_token_expires_at: string;
+    }
+  | {
+      id: string;
+      status: 'pending';
+      scheduled_at: string;
+    };
 
 export const getDeletionRequest = async (
   accessToken: string

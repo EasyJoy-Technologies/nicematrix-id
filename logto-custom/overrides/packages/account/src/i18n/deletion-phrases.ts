@@ -27,6 +27,8 @@ const phrases = {
         step_confirm_title: '确认注销',
         step_confirm_warning:
           '提交后我们会向您的邮箱发送一封确认邮件。只有在 24 小时内点击邮件里的链接，您的注销申请才会正式生效。',
+        step_confirm_warning_no_email:
+          '提交后注销申请会立即生效，并进入 15 天冷静期。冷静期内您可随时取消；超过冷静期后账户将被永久删除。',
         step_second_confirm_title: '最后确认',
         step_second_confirm_warning:
           '点击"确认注销"后申请会发起，并进入 15 天冷静期。您可在冷静期内随时取消。超过冷静期后账户将被永久删除。',
@@ -42,6 +44,7 @@ const phrases = {
         cancel_request: '取消注销申请',
         cancel_success: '已取消注销申请',
         create_success: '注销申请已提交，请查收确认邮件',
+        create_success_no_email: '注销申请已提交，账户将于 {{date}} 被删除。冷静期内可随时取消。',
         confirm_success: '注销申请已确认，账户将于 {{date}} 被删除',
 
         error_already_exists: '您已经有一个未完成的注销申请',
@@ -68,6 +71,8 @@ const phrases = {
         step_confirm_title: '確認註銷',
         step_confirm_warning:
           '提交後我們會寄一封確認郵件到您的信箱。只有在 24 小時內點擊郵件中的連結，您的註銷申請才會正式生效。',
+        step_confirm_warning_no_email:
+          '提交後註銷申請會立即生效，並進入 15 天冷靜期。冷靜期內您可以隨時取消；超過冷靜期後帳戶將被永久刪除。',
         step_second_confirm_title: '最後確認',
         step_second_confirm_warning:
           '點擊「確認註銷」後申請會發起，並進入 15 天冷靜期。您可以在冷靜期內隨時取消；超過冷靜期後帳戶將被永久刪除。',
@@ -83,6 +88,7 @@ const phrases = {
         cancel_request: '取消註銷申請',
         cancel_success: '已取消註銷申請',
         create_success: '註銷申請已提交，請查收確認郵件',
+        create_success_no_email: '註銷申請已提交，帳戶將於 {{date}} 被刪除。冷靜期內可隨時取消。',
         confirm_success: '註銷申請已確認，帳戶將於 {{date}} 被刪除',
 
         error_already_exists: '您已經有一個未完成的註銷申請',
@@ -109,6 +115,8 @@ const phrases = {
         step_confirm_title: '確認註銷',
         step_confirm_warning:
           '提交後我們會寄一封確認郵件到您的信箱。只有在 24 小時內點擊郵件中的連結，您的註銷申請才會正式生效。',
+        step_confirm_warning_no_email:
+          '提交後註銷申請會立即生效，並進入 15 天冷靜期。冷靜期內您可以隨時取消；超過冷靜期後帳戶將被永久刪除。',
         step_second_confirm_title: '最後確認',
         step_second_confirm_warning:
           '點擊「確認註銷」後申請會發起，並進入 15 天冷靜期。您可以在冷靜期內隨時取消；超過冷靜期後帳戶將被永久刪除。',
@@ -124,6 +132,7 @@ const phrases = {
         cancel_request: '取消註銷申請',
         cancel_success: '已取消註銷申請',
         create_success: '註銷申請已提交，請查收確認郵件',
+        create_success_no_email: '註銷申請已提交，帳戶將於 {{date}} 被刪除。冷靜期內可隨時取消。',
         confirm_success: '註銷申請已確認，帳戶將於 {{date}} 被刪除',
 
         error_already_exists: '您已經有一個未完成的註銷申請',
@@ -150,6 +159,8 @@ const phrases = {
         step_confirm_title: 'Confirm deletion',
         step_confirm_warning:
           'We will email you a confirmation link. Your deletion request only takes effect after you click the link within 24 hours.',
+        step_confirm_warning_no_email:
+          'Your deletion request takes effect immediately and starts a 15-day grace window. You can cancel any time before it ends; afterwards the account is permanently deleted.',
         step_second_confirm_title: 'Final confirmation',
         step_second_confirm_warning:
           'Clicking "Confirm deletion" submits the request and starts a 15-day grace window. You can cancel any time before it ends; afterwards the account is permanently deleted.',
@@ -165,6 +176,7 @@ const phrases = {
         cancel_request: 'Cancel deletion request',
         cancel_success: 'Deletion request cancelled',
         create_success: 'Deletion request submitted. Please check your email.',
+        create_success_no_email: 'Deletion request submitted. Your account will be deleted on {{date}}. You can cancel any time during the grace window.',
         confirm_success: 'Deletion confirmed. Your account will be deleted on {{date}}.',
 
         error_already_exists: 'You already have an open deletion request',

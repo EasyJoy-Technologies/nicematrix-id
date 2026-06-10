@@ -8,12 +8,21 @@
  *
  *   POST /api/my-account/deletion-request
  *     Requires identity-verified request (logto-verification-id header, same
- *     pattern as other sensitive endpoints). Creates a row with status
- *     'awaiting_confirmation' and a single-use confirmation token. The email
- *     is sent by NiceMatrix-Backend via the 'account_deletion_requested'
- *     template once it polls the row (or alternatively, pushed via webhook).
+ *     pattern as other sensitive endpoints).
+ *     - User HAS a primary email: creates a row with status
+ *       'awaiting_confirmation' and a single-use confirmation token. The email
+ *       is sent by NiceMatrix-Backend via the 'account_deletion_requested'
+ *       template once it polls the row.
+ *     - User has NO primary email (the vast majority — legacy phone-only and
+ *       social-only accounts): the email-confirmation step is impossible, so
+ *       the request goes STRAIGHT to 'pending' with the 15-day grace window.
+ *       The in-session identity re-verification + the two-step UI confirm +
+ *       the cancellable grace period provide the intent/abuse protection that
+ *       the email link would otherwise add. (Decision: Xianglin, 2026-06-10.)
  *     Body: { reason?: string }
- *     Response: { id, status, confirmation_token_expires_at }
+ *     Response (email path):    { id, status:'awaiting_confirmation',
+ *                                 confirmation_token, confirmation_token_expires_at }
+ *     Response (no-email path): { id, status:'pending', scheduled_at }
  *
  *   POST /api/my-account/deletion-request/confirm
  *     Consumes the token (sent to the user by email), flips status to
@@ -157,13 +166,22 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       body: z.object({
         reason: z.string().max(2000).optional(),
       }),
-      response: z.object({
-        id: z.string(),
-        status: z.string(),
-        confirmation_token: z.string(),
-        // ISO-8601 string (see DeletionRequestRow note); matches client contract.
-        confirmation_token_expires_at: z.string(),
-      }),
+      // Two shapes, discriminated by `status` (see route doc above): users with
+      // a primary email get the token/awaiting shape; users without get the
+      // direct-pending shape. All dates are ISO-8601 strings (client contract).
+      response: z.discriminatedUnion('status', [
+        z.object({
+          id: z.string(),
+          status: z.literal('awaiting_confirmation'),
+          confirmation_token: z.string(),
+          confirmation_token_expires_at: z.string(),
+        }),
+        z.object({
+          id: z.string(),
+          status: z.literal('pending'),
+          scheduled_at: z.string(),
+        }),
+      ]),
       status: [200, 401, 409],
     }),
     async (ctx, next) => {
@@ -200,13 +218,42 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       }
 
       const id = generateStandardId();
-      const token = generateStandardId(32);
-      const tokenExpiresAt = new Date(Date.now() + CONFIRMATION_TOKEN_TTL_MS);
       const reason = ctx.guard.body.reason ?? null;
       const ip =
         (typeof ctx.request.ip === 'string' && ctx.request.ip) ||
         (typeof ctx.ip === 'string' && ctx.ip) ||
         null;
+
+      // Branch on whether the user can actually receive the confirmation
+      // email. `findUserById` throws entity.not_found (404) for a missing
+      // user, which cannot happen for an authenticated session — let it
+      // propagate as-is if it ever does.
+      const user = await tenant.queries.users.findUserById(userId);
+
+      if (!user.primaryEmail) {
+        // No email on file → email confirmation is impossible. Go straight to
+        // the 15-day grace window (identity already re-verified above).
+        const scheduledAt = new Date(Date.now() + DEFAULT_GRACE_WINDOW_MS);
+
+        await pool.query(sql`
+          insert into user_deletion_requests
+            (id, tenant_id, user_id, status, reason, created_ip,
+             confirmed_at, scheduled_at)
+          values
+            (${id}, ${tenantId}, ${userId}, 'pending',
+             ${reason}, ${ip}, now(), ${scheduledAt.toISOString()})
+        `);
+
+        ctx.body = {
+          id,
+          status: 'pending',
+          scheduled_at: scheduledAt.toISOString(),
+        };
+        return next();
+      }
+
+      const token = generateStandardId(32);
+      const tokenExpiresAt = new Date(Date.now() + CONFIRMATION_TOKEN_TTL_MS);
 
       await pool.query(sql`
         insert into user_deletion_requests
