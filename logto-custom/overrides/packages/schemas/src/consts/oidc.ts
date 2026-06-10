@@ -13,7 +13,14 @@ export const oidcRoutes = Object.freeze({
 
 export const customClientMetadataDefault = Object.freeze({
   idTokenTtl: inSeconds.oneHour,
-  refreshTokenTtlInDays: 14,
+  // [NiceMatrix override] Default refresh-token TTL raised 14 -> 60 days (2026-06-10)
+  // to reduce inactivity-based forced logouts on the 12 Native business client apps,
+  // which carry no explicit `refreshTokenTtlInDays` and therefore inherit this default.
+  // Apps with an explicit value (consoles: NiceMatrix Admin / Email System / OmniFire /
+  // bbs = 14) are unaffected; the built-in `admin-console` is pinned to 14 separately.
+  // Capped at 180 by the schema guard; Grant ceiling stays 180d. Why-not-per-app: a
+  // per-app PATCH is wiped wholesale by syncAppToLogto() on the next admin edit.
+  refreshTokenTtlInDays: 60,
   rotateRefreshToken: true,
 } as const satisfies Partial<CustomClientMetadata>);
 
