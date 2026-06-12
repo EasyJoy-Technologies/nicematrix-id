@@ -14,6 +14,19 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### TOTP authenticator-app issuer = brand name (2026-06-11)
+
+**Why**: The `issuer` field of a TOTP `otpauth://` URI is what an authenticator app (Google Authenticator, 1Password, Authy, …) shows as the account's **title**. Upstream Logto hard-codes the issuer to the request hostname in every TOTP code path, so NiceMatrix users saw `id.nicematrix.com` instead of a brand name. This makes the title the fixed brand name **`NiceMatrix ID`**; the account sub-label (user email/username) is unchanged.
+
+**Patch** (single brand constant + 4 call-site files, all `[NiceMatrix]` marked):
+- `core/src/constants/mfa-issuer.ts` — **new file**, single source of truth: `export const mfaIssuerName = 'NiceMatrix ID'`.
+- `core/src/routes/experience/classes/verifications/totp-verification.ts` — hosted-page **login-flow** MFA binding (the main path). `generateSecretQrCode()` uses `mfaIssuerName`; the now-unused hostname plumbing is removed and `generateNewSecret`'s `ctx` param is retained as `_ctx` so the caller route needs no override.
+- `core/src/routes/interaction/additional.ts` — legacy interaction flow (register + sign-in branches; 2 `keyuri` calls). WebAuthn `rpId: ctx.URL.hostname` is intentionally left as the real domain.
+- `core/src/routes/admin-user/mfa-verifications.ts` — admin Management API (`POST /users/:id/mfa-verifications`).
+- `account/src/pages/TotpBinding/index.tsx` — Account Center self-service binding. Separate frontend bundle that can't import from `packages/core`, so it inlines the same `'NiceMatrix ID'` literal with a comment pointing back to `mfa-issuer.ts`. Keep both in sync.
+
+**Risk surface**: zero. The issuer is a **display field only** — it is not part of the TOTP HMAC (secret + time step), so code generation/verification is unaffected for both existing and new bindings. No protocol/auth/DB change. Only **newly** created TOTP bindings show the new title; already-bound authenticator entries keep whatever issuer they were created with (cosmetic, no action needed). Image rebuild required (id-staging → prod-1).
+
 ### PostSignIn region routing (Logto-side fan-out filter) (2026-06-08)
 
 **Why**: Cross-region design §6.5 (nicematrix-backend `docs/_plans/2026-06-04_cross-region-coordination-and-device-routing.md`). The `region` ExtraParam (below) lets each backend self-filter (S3b), but by default the SAME PostSignIn event is still fanned out to BOTH region hooks (the non-owning backend just drops it with `200 ignored`). That means an intl sign-in event still leaves the network toward prod-3 (and vice-versa) — functionally correct but not the cleanest data residency. This override lets a hook declare the region it owns so Logto only delivers matching events; the data of the other region is never sent out.
