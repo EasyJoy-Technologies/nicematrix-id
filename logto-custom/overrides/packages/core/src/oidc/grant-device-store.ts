@@ -12,10 +12,16 @@
  * `extraTokenClaims` producer look it up on EVERY issuance type
  * (authorization_code / refresh_token / token-exchange).
  *
- * Both functions are FAIL-SOFT: any error (table missing, DB hiccup, invalid
- * input) degrades to a no-op / undefined. The backend device-lease check is
- * fail-open on a missing claim, so a soft failure here simply means the token
- * is exempt from enforcement — never a login break.
+ * Both functions are FAIL-SOFT: any error degrades to a no-op / undefined so
+ * token issuance is never broken. The backend device-lease check is fail-open
+ * on a missing claim, so a soft failure here simply means the token is exempt.
+ * BUT real DB errors are logged at warn level (not swallowed silently): a
+ * persistent failure here means the whole feature is silently inert.
+ *
+ * Table prerequisites (see deploy/sql/_nicematrix_grant_device.sql): RLS enabled
+ * + permissive policy (Logto boot precondition) AND `grant ... to
+ * logto_tenant_logto` (Logto runs queries under that role via SET ROLE; without
+ * the grant every write fails `permission denied`).
  *
  * Write sites:
  *   - native (token-exchange): oidc/grants/token-exchange/index.ts
@@ -41,9 +47,9 @@ const normalize = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
 
 /**
- * Upsert the binding for a grant. No-op (silently) when grant id is missing or
- * when device_ref / app_slug are absent or fail validation — callers can pass
- * partial context without guarding.
+ * Upsert the binding for a grant. No-op when grant id is missing or when
+ * device_ref / app_slug are absent or fail validation — callers can pass
+ * partial context without guarding. A real DB error is logged (never thrown).
  */
 export const upsertGrantDevice = async (
   pool: CommonQueryMethods,
@@ -51,15 +57,15 @@ export const upsertGrantDevice = async (
   deviceRef: unknown,
   appSlug: unknown
 ): Promise<void> => {
+  const grant = normalize(grantId);
+  const device = normalize(deviceRef);
+  const slug = normalize(appSlug);
+
+  if (!grant || !deviceRefRe.test(device) || !appSlugRe.test(slug)) {
+    return;
+  }
+
   try {
-    const grant = normalize(grantId);
-    const device = normalize(deviceRef);
-    const slug = normalize(appSlug);
-
-    if (!grant || !deviceRefRe.test(device) || !appSlugRe.test(slug)) {
-      return;
-    }
-
     await pool.query(sql`
       insert into _nicematrix_grant_device (grant_id, device_ref, app_slug)
       values (${grant}, ${device}, ${slug})
@@ -67,22 +73,32 @@ export const upsertGrantDevice = async (
         set device_ref = excluded.device_ref,
             app_slug = excluded.app_slug
     `);
-  } catch {
-    // fail-soft: table absent / DB error → no binding (token stays exempt).
+  } catch (error) {
+    // Fail-soft: never break token issuance. But log — a persistent failure
+    // (missing table / missing grant to logto_tenant_logto) silently disables
+    // the whole device-session feature.
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[nicematrix] upsertGrantDevice failed (device-session binding skipped):',
+      String((error as Error)?.message ?? error)
+    );
   }
 };
 
-/** Read the binding for a grant, or undefined when absent / on any error. */
+/**
+ * Read the binding for a grant, or undefined when absent. A real DB error is
+ * logged and treated as "no binding" (token stays exempt).
+ */
 export const findGrantDevice = async (
   pool: CommonQueryMethods,
   grantId: unknown
 ): Promise<GrantDeviceBinding | undefined> => {
-  try {
-    const grant = normalize(grantId);
-    if (!grant) {
-      return undefined;
-    }
+  const grant = normalize(grantId);
+  if (!grant) {
+    return undefined;
+  }
 
+  try {
     const row = await pool.maybeOne<{ deviceRef: string; appSlug: string }>(sql`
       select device_ref, app_slug
         from _nicematrix_grant_device
@@ -100,7 +116,12 @@ export const findGrantDevice = async (
     }
 
     return { deviceRef, appSlug };
-  } catch {
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[nicematrix] findGrantDevice failed (no device claim emitted):',
+      String((error as Error)?.message ?? error)
+    );
     return undefined;
   }
 };
