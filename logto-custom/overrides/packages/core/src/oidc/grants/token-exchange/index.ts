@@ -49,6 +49,8 @@ import { type EnvSet } from '#src/env-set/index.js';
 import type Queries from '#src/tenants/Queries.js';
 import assertThat from '#src/utils/assert-that.js';
 
+// [NiceMatrix override] persist the device-session binding for native logins.
+import { upsertGrantDevice } from '../../grant-device-store.js';
 import {
   getSharedResourceServerData,
   isThirdPartyApplication,
@@ -110,7 +112,9 @@ export const buildHandler: (
     conformIdTokenClaims,
   } = providerInstance.configuration();
 
-  const { userId, subjectTokenId } = await validateSubjectToken({
+  // [NiceMatrix override] `context` carries the device-session binding
+  // (device_ref / app_slug) the backend stored when minting the subject token.
+  const { userId, subjectTokenId, context: subjectTokenContext } = await validateSubjectToken({
     queries,
     subjectToken: String(params.subject_token),
     subjectTokenType: String(params.subject_token_type),
@@ -253,6 +257,18 @@ export const buildHandler: (
 
   await grant.save();
   ctx.oidc.entity('Grant', grant);
+
+  // [NiceMatrix override] Bind device_ref + app_slug to this grant id so the
+  // unified extraTokenClaims producer emits them on this AT and on every
+  // subsequent refresh rotation. Fail-soft: bad/missing context or absent
+  // table is a silent no-op (token simply carries no device claim).
+  await upsertGrantDevice(
+    envSet.pool,
+    grantId,
+    subjectTokenContext?.device_ref,
+    subjectTokenContext?.app_slug
+  );
+
   ctx.oidc.entity('AccessToken', accessToken);
   const accessTokenString = await accessToken.save();
 

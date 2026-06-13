@@ -14,6 +14,23 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Device-session claims (`device_ref` + `app_slug`) on access tokens (2026-06-12)
+
+**Why**: NiceMatrix backend enforces a device-session lease (`shared/device-lease.js`, flag `DEVICE_LEASE_ENFORCEMENT`): a request is rejected only when the access token carries a **signed** `device_ref` + `app_slug` claim that maps to a `user_devices` row that was evicted / logged out. For that to bite, Logto must put those two values into the access token — and keep them across refresh rotations. oidc-provider's RefreshToken has no `extra` and a fixed `IN_PAYLOAD`, so a token-carried value does NOT survive refresh (upstream's own `act` claim has the same limitation). The only stable anchor across the whole refresh chain is the **grant id**, so we key the binding on it.
+
+**Patch** (2 new modules + 2 new overrides + 2 edits to existing overrides + 1 SQL, all `[NiceMatrix]` marked):
+- `core/src/oidc/grant-device-store.ts` — **new module**. `upsertGrantDevice` / `findGrantDevice` against the side table `_nicematrix_grant_device(grant_id pk, device_ref, app_slug, created_at)`. Pool = `queries.pool` (`Queries.pool` is public; **no `Queries.ts` override**). Both fail-soft: any error / missing table → no-op / undefined.
+- `core/src/oidc/extra-token-claims-device.ts` — **new module**. Unified read producer: for an access token with a `grantId`, look up the binding and emit `{ device_ref, app_slug }`. Runs on EVERY issuance type, so the claim is emitted identically for authorization_code (web), refresh_token (both) and token-exchange (native).
+- `core/src/oidc/init.ts` — **edit** (existing override). Merge the device producer into `extraTokenClaims`.
+- `core/src/oidc/grants/token-exchange/index.ts` — **edit** (existing override). Native write point: after `grant.save()`, `upsertGrantDevice` from the subject token's `context`.
+- `core/src/oidc/grants/token-exchange/account.ts` — **new override**. `validateSubjectToken` surfaces the subject token's `context` (impersonation branch only) so the grant can read `device_ref` / `app_slug`.
+- `core/src/libraries/session/consent.ts` — **new override**. Web write point: after `grant.save()`, `upsertGrantDevice` from `interactionDetails.params.device_ref/app_slug`. `consent()` is the single grant-creation point for the authorization_code flow (called by both the third-party manual consent route and the first-party `koa-auto-consent` middleware), so this one delta covers ALL web logins.
+- `deploy/sql/_nicematrix_grant_device.sql` — **new**. `CREATE TABLE IF NOT EXISTS`, applied manually AFTER the fail-soft image ships (table-after-code rollout).
+
+**Data sources**: native = backend `createSubjectToken({ context: { device_ref, app_slug } })` → `subject_tokens.context`. web = client sends `?device_ref=&app_slug=` on `/authorize` (same chain that already feeds the PostSignIn webhook).
+
+**Risk surface**: pure increment. The read path keys on grant id and **touches no grant's token-minting code** (refresh/authcode grants unchanged), so the core login path is unaffected. Fully **fail-soft + table-after-code**: with the table absent the system behaves byte-identically to today (no claim → backend lease check fail-open exempts the token). Enforcement only begins after the backend flag is moved off `off`. Detail: `docs/device-claim-injection-plan.md`.
+
 ### TOTP authenticator-app issuer = brand name (2026-06-11)
 
 **Why**: The `issuer` field of a TOTP `otpauth://` URI is what an authenticator app (Google Authenticator, 1Password, Authy, …) shows as the account's **title**. Upstream Logto hard-codes the issuer to the request hostname in every TOTP code path, so NiceMatrix users saw `id.nicematrix.com` instead of a brand name. This makes the title the fixed brand name **`NiceMatrix ID`**; the account sub-label (user email/username) is unchanged.
