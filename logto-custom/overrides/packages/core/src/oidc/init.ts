@@ -47,9 +47,6 @@ import koaTokenUsageGuard from '../middleware/koa-token-usage-guard.js';
 
 import defaults from './defaults.js';
 import { deviceFlowConfig, defaultDeviceCodeTtl } from './device-flow.js';
-// [NiceMatrix] device-session claim producer (device_ref + app_slug), see
-// extra-token-claims-device.ts / grant-device-store.ts.
-import { getExtraTokenClaimsForDeviceSession } from './extra-token-claims-device.js';
 import {
   getExtraTokenClaimsForJwtCustomization,
   getExtraTokenClaimsForOrganizationApiResource,
@@ -268,14 +265,8 @@ export default function initOidc(
     },
     extraParams: Object.values(ExtraParamsKey),
     extraTokenClaims: async (ctx, token) => {
-      const [
-        tokenExchangeClaims,
-        organizationApiResourceClaims,
-        jwtCustomizedClaims,
-        // [NiceMatrix] device-session claims (device_ref + app_slug), keyed by
-        // grant id so they survive refresh rotations on every issuance type.
-        deviceSessionClaims,
-      ] = await Promise.all([
+      const [tokenExchangeClaims, organizationApiResourceClaims, jwtCustomizedClaims] =
+        await Promise.all([
           getExtraTokenClaimsForTokenExchange(ctx, token),
           getExtraTokenClaimsForOrganizationApiResource(ctx, token),
           getExtraTokenClaimsForJwtCustomization(
@@ -289,15 +280,9 @@ export default function initOidc(
               logtoConfigs,
             }
           ),
-          getExtraTokenClaimsForDeviceSession(ctx, token, queries),
         ]);
 
-      if (
-        !organizationApiResourceClaims &&
-        !jwtCustomizedClaims &&
-        !tokenExchangeClaims &&
-        !deviceSessionClaims
-      ) {
+      if (!organizationApiResourceClaims && !jwtCustomizedClaims && !tokenExchangeClaims) {
         return;
       }
 
@@ -305,9 +290,6 @@ export default function initOidc(
         ...tokenExchangeClaims,
         ...organizationApiResourceClaims,
         ...jwtCustomizedClaims,
-        // [NiceMatrix] Spread last: device claims are reserved names that no
-        // other producer emits, so ordering is not contentious.
-        ...deviceSessionClaims,
       };
     },
     extraClientMetadata: {

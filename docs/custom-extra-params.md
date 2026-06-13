@@ -8,8 +8,6 @@
 
 > `native_caps` / `native_scheme` 为 Phase B 原生社交接管参数（见 `packages/experience/src/utils/native-caps.ts`），与本文同属 ExtraParams 链路，一并维护。
 
-> **2026-06-12 新增用途（device_ref / app_slug）**：除了流向 PostSignIn webhook（本文主线），`device_ref` + `app_slug` 现在还会被签进 **access token claim**，用于后端设备会话租约拦截（`shared/device-lease.js`）。web（authorization_code）走 `interactionDetails.params` → `libraries/session/consent.ts` 写入按 grantId 绑定；native（token-exchange）走后端 `subject_tokens.context` → `oidc/grants/token-exchange/index.ts` 写入。统一读出在 `oidc/extra-token-claims-device.ts`，按 grantId 查表，故 refresh 续签后 claim 仍在。完整设计见 `docs/device-claim-injection-plan.md` 与 `logto-custom/README.md` 对应条目。
-
 ## 改动文件（6 个）
 
 所有改动标记 `[NiceMatrix]` 注释，升级时搜索 `grep -rn "\[NiceMatrix\]" logto-custom/overrides/`。
