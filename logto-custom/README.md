@@ -14,6 +14,16 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### `packages/core/src/routes/admin-user/verification-records.ts` + `index.ts` (2026-06-15)
+
+**Why**: Logto validates a *sensitive-operation verification record* only inside the Account API opaque-token middleware (`core/src/middleware/koa-auth/koa-oidc-auth.ts → getVerificationRecordResultById`) and the experience flows — there is **no Management API route** for a trusted M2M caller to confirm "this record is owned by user X and verified". The NiceMatrix backend needs exactly that so native third-party bind/unbind (`POST/DELETE /v1/me/identities/{wechat|alipay|qq}`) can be gated behind the **same step-up second-factor** that Logto's own web-flow social binding already enforces. Without it those native endpoints had no second-factor, so a stolen (device/IP-unbound) native access token could silently bind an attacker's own social account onto a victim — a backdoor a password change / MFA would not stop. Plan: nicematrix-backend `docs/_plans/2026-06-15_native-bind-step-up-verification.md` (scheme A1).
+
+**Patch**:
+- `admin-user/verification-records.ts` (new) — `POST /api/users/:userId/verification-records/assert`, body `{ recordId }`. Decision logic is byte-identical to upstream `getVerificationRecordResultById`: find active record → require `record.userId === :userId` → `verificationRecordDataGuard.safeParse` → `buildVerificationRecord(...).isVerified`. **`204`** when valid+verified+owned; **`422`** (`verification_record.not_found`) when missing / expired / wrong-owner / malformed / unverified (collapsed — no owner/existence oracle); **`400`** (koa-guard) on missing `recordId`. Read-only, zero side effects, returns no PII. Accepts ANY verified record type (password / email-OTP / phone-OTP / social / passkey) so social-only users keep parity with Logto web binding.
+- `admin-user/index.ts` (override of upstream wiring) — registers `adminUserVerificationRecordsRoutes` **before** `adminUserBasicsRoutes` so the static `/users/:userId/verification-records/assert` path wins the koa-router match over `/users/:userId` (same belt-and-braces ordering rationale as `by-identity`).
+
+**Risk surface**: pure increment, no existing route touched. Mounted on `managementRouter`, which already enforces M2M auth + `PredefinedScope.All` (koa-auth) — no new auth code. Reuses only upstream-exported primitives (`queries.verificationRecords.findActiveVerificationRecordById`, `verificationRecordDataGuard`, `buildVerificationRecord`); no new query, no schema/DB change. Unit test: `logto-custom/tests/test-verification-records.js` (7 cases). The koa wiring + zod guard + real `isVerified` are covered by the id-staging M2M smoke. Image rebuild required to deploy (id-staging → prod-1). cn (prod-3) shares prod-1 Logto cross-border — no cn-side Logto deploy.
+
 ### TOTP authenticator-app issuer = brand name (2026-06-11)
 
 **Why**: The `issuer` field of a TOTP `otpauth://` URI is what an authenticator app (Google Authenticator, 1Password, Authy, …) shows as the account's **title**. Upstream Logto hard-codes the issuer to the request hostname in every TOTP code path, so NiceMatrix users saw `id.nicematrix.com` instead of a brand name. This makes the title the fixed brand name **`NiceMatrix ID`**; the account sub-label (user email/username) is unchanged.

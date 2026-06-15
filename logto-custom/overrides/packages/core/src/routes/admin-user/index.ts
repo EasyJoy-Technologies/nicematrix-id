@@ -12,6 +12,9 @@ import adminUserRoleRoutes from './role.js';
 import adminUserSearchRoutes from './search.js';
 import adminUserSessionRoutes from './session.js';
 import adminUserSocialRoutes from './social.js';
+// [NiceMatrix override] read-only assert of a sensitive-op verification record
+// (step-up gate for native social bind/unbind). See verification-records.ts.
+import adminUserVerificationRecordsRoutes from './verification-records.js';
 
 export default function adminUserRoutes<T extends ManagementApiRouter>(...args: RouterInitArgs<T>) {
   // [NiceMatrix override] MUST be registered BEFORE adminUserBasicsRoutes so the
@@ -20,6 +23,10 @@ export default function adminUserRoutes<T extends ManagementApiRouter>(...args: 
   // ids are 12-char nanoids that never equal the literal `by-identity`, so this
   // is belt-and-braces; the ordering makes it unconditionally correct.
   adminUserByIdentityRoutes(...args);
+  // [NiceMatrix override] MUST be registered BEFORE adminUserBasicsRoutes so the
+  // static path `/users/:userId/verification-records/assert` is matched before
+  // the `/users/:userId` wildcard in basics.ts (same rationale as by-identity).
+  adminUserVerificationRecordsRoutes(...args);
   adminUserBasicsRoutes(...args);
   adminUserRoleRoutes(...args);
   adminUserSearchRoutes(...args);
