@@ -27,17 +27,27 @@ import type { ManagementApiRouter, RouterInitArgs } from '../types.js';
  *
  * WHAT: a read-only assertion. The backend mints NOTHING here; the client mints
  * the verification record against Logto with the user's OWN account-scoped token
- * (password / email-OTP / phone-OTP / redo social / passkey), then passes the
- * opaque `recordId` to the backend, which asks this route "is this record valid,
+ * (password / email-OTP / phone-OTP / passkey — NOT redo-social, see NOTE
+ * below), then passes the opaque `recordId` to the backend, which asks this
+ * route "is this record valid,
  * verified, and owned by :userId?". 204 = yes; 422 = no.
  *
  * The decision logic is byte-for-byte the same as upstream
  * `getVerificationRecordResultById` (koa-oidc-auth.ts): find the active record,
  * require `record.userId === :userId`, parse `record.data`, build the
  * verification instance, return its `isVerified`. Accepting ANY verified record
- * type (not only password) is deliberate — it keeps social-only users (no
- * password / email / phone) able to step up via redo-social or passkey, exactly
- * as Logto's web binding does.
+ * type that is OWNED BY :userId (not only password) is deliberate — it keeps
+ * social-only users able to step up via password bootstrap or passkey
+ * registration, exactly as Logto's web binding does.
+ *
+ * NOTE (2026-06-15, fixplan F-A): a record minted by *redoing a social
+ * authorization* (`/api/verifications/social` + `/social/verify`) does NOT pass
+ * this gate. Upstream `verification/index.ts` inserts the social record with NO
+ * `userId` (`insertVerificationRecord(socialVerification, queries)` — two args),
+ * so `record.userId === :userId` is always false → 422. This is upstream Logto
+ * behavior (the web-flow binding's step-up has the same constraint). The two
+ * working passwordless step-up routes are therefore password-bootstrap and
+ * passkey; redo-social is NOT one of them.
  *
  * SAFETY:
  *   - Mounted on managementRouter, which already enforces M2M auth +
