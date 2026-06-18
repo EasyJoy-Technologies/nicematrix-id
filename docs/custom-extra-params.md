@@ -122,7 +122,9 @@ values ('admin', '<21-char-nanoid>', 'NiceMatrix Login Control (cn)', null,
 visible = (show 缺省 或 target ∈ show) 且 (target ∉ hide)
 hidden  = ¬visible
 ```
-即 `show` 定义可见全集（白名单），`hide` 再从中扣除。`show_social=`（空值）= 隐藏所有三方（fail-safe）；`hide_social=`（空值）= 空黑名单（no-op）。
+即 `show` 定义可见全集（白名单），`hide` 再从中扣除。
+
+> **空值警告（transit 行为）**：每个参数**必须至少带一个 target**。经标准 OIDC 流（`/oidc/auth → /sign-in`）时，`buildLoginPromptUrl` 的 `appendExtraParam` 对**假值（空字符串）跳过转发**（与所有 ExtraParams 一致），因此 `show_social=` / `hide_social=`（空值）在真实登录流里**等同于未传**（passthrough，全部显示），无法触发"隐藏全部"。这是有意的上游一致行为，非缺陷 —— 实际诉求（`hide_social=google,facebook` / `show_social=apple,wechat`）都带非空值，不受影响。函数层（直接访问 experience 页、不走 OIDC）仍保留"空 show = 隐藏全部"的 fail-safe 语义（见单测），但生产 Native/Web 客户端永远走 OIDC，所以以 transit 行为为准。
 
 `<csv>` 每项是三方连接器 target（小写：`google` / `facebook` / `apple` / `wechat` / ...），不合法形状（含空格/控制符/超 64 字符）静默丢弃。
 
