@@ -1,0 +1,23 @@
+{
+    "task": "Region-aware social-button visibility on hosted login page (hide_social / show_social)",
+    "updated": "2026-06-17",
+    "logto": {
+        "repo": "nicematrix-id",
+        "status": "DONE — built, deployed staging + prod-1, e2e verified both",
+        "summary": "New URL params hide_social (blacklist) + show_social (whitelist) let a calling App (e.g. cn build) show/hide standard social providers (google/facebook/...) on the Logto hosted login page. Filter applied at single source of truth parseSignInExperienceResponse (sign-in-experience.ts) so the 'or' divider + empty-state branches stay consistent (no orphan divider). Structural guardrail: only socialConnectors array is touched, email/password never hideable. Google hidden => One Tap suppressed. native-caps unit tests 97/97 green.",
+        "files": [
+            "packages/schemas/src/consts/oidc.ts",
+            "packages/core/src/oidc/utils.ts",
+            "packages/experience/src/utils/native-caps.ts",
+            "packages/experience/src/utils/sign-in-experience.ts (new override)"
+        ],
+        "deploy": {
+            "staging": "id-staging.nicematrix.com — image a09568b35463, container healthy, 7-case real-OIDC e2e PASS",
+            "prod1": "id.nicematrix.com (46.224.6.74) — image config 437265c852fc loaded via docker save->scp (md5 4fdbac85e17deb0e0e85f4e692b14996 matched), force-recreate, healthy, 7-case real-OIDC e2e PASS, 0 log errors",
+            "rollback": "prod-1 backup tags nicematrix-logto:prod-backup-20260617_2332 + :pre-social-visibility-rollback = 90dc641ca8a4"
+        },
+        "caveat": "Empty-value params (show_social= / hide_social=) pass through as 'no rule' over OIDC because appendExtraParam skips falsy values (upstream-consistent). Each param must carry >=1 target. Documented in docs/custom-extra-params.md.",
+        "client_usage": "iOS/Android/Flutter add hide_social / show_social query to the /oidc/auth authorization request (extra params). Native SDK: pass via extraParams.",
+        "next": "none — task complete"
+    }
+}

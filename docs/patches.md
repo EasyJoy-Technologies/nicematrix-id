@@ -117,4 +117,7 @@ No dist bundle patching is used in the active workflow.
     - 用途：客户端传 `?hide_social=google,facebook`（黑名单）或 `?show_social=apple,wechat`（白名单）控制托管登录页三方按钮显隐；中国区构建包据此隐藏 Google/Facebook。
     - 护栏：结构性，只作用于 `socialConnectors` 数组，永不影响邮箱/密码主登录。
     - 纯前端显隐（`/.well-known/experience` 仍下发被隐藏连接器，只是不渲染）。
-    - 都不传 = 上游字节级等价；详见 `custom-extra-params.md`。单测 `logto-custom/tests/test-native-caps.js`。
+    - 都不传 = 上游字节级等价；详见 `custom-extra-params.md`。单测 `logto-custom/tests/test-native-caps.js`（97/97 绿）。
+    - 空值 caveat：`hide_social=` / `show_social=`（空）经 OIDC 流被 `appendExtraParam` 跳过转发 = passthrough（全显示）；每个参数必须带 ≥1 target。
+    - **部署（2026-06-17）**：staging `id-staging`（image `a09568b35463`）+ prod-1 `id.nicematrix.com`（image config `437265c852fc`，`docker save`→scp md5 `4fdbac85e17d` 校验一致→force-recreate）均 healthy。两环境各跑 7 例真实 OIDC headless e2e 全过（hide/show/优先级/隐藏全部时分隔线消失/passthrough），0 日志错误。prod-1 回滚 tag：`nicematrix-logto:pre-social-visibility-rollback` = `90dc641ca8a4`。
+    - **客户端用法**：iOS/Android/Flutter 在 `/oidc/auth` authorization 请求的 extra params 里加 `hide_social` / `show_social`。
