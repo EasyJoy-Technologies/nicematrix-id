@@ -1,0 +1,110 @@
+// [NiceMatrix override] connector-oidc constant.
+//
+// Delta vs upstream 1.40.1 (search "[NiceMatrix]"): adds an `identitySource`
+// Select form item so the identity-id claim selector is editable/visible in the
+// Logto Console connector form and is not dropped on connector edit-save.
+// Default 'sub' = upstream behavior; 'oid' is used by the Microsoft connector.
+import type { ConnectorMetadata } from '@logto/connector-kit';
+import { ConnectorConfigFormItemType, ConnectorPlatform } from '@logto/connector-kit';
+import {
+  tokenEndpointAuthOptionsFormItems,
+  clientSecretFormItem,
+  clientIdFormItem,
+  tokenEndpointFormItem,
+  authorizationEndpointFormItem,
+  scopeFormItem,
+} from '@logto/connector-oauth';
+
+export const defaultMetadata: ConnectorMetadata = {
+  id: 'oidc',
+  target: 'oidc',
+  platform: ConnectorPlatform.Universal,
+  name: {
+    en: 'OIDC',
+    'zh-CN': 'OIDC',
+    'tr-TR': 'OIDC',
+    ko: 'OIDC',
+  },
+  logo: './logo.svg',
+  logoDark: null,
+  description: {
+    en: 'OpenID Connect 1.0 is a simple identity layer on top of the OAuth 2.0 protocol.',
+    'zh-CN': 'OpenID Connect 1.0 是基于 OAuth 2.0 协议的一个简单身份层。',
+    'tr-TR':
+      'OpenID Connect 1.0, OAuth 2.0 protokolünün üzerine inşa edilmiş basit bir kimlik katmanıdır.',
+    ko: 'OpenID Connect 1.0은 OAuth 2.0 프로토콜 위에 구축된 간단한 ID 계층입니다.',
+  },
+  readme: './README.md',
+  isStandard: true,
+  formItems: [
+    authorizationEndpointFormItem,
+    tokenEndpointFormItem,
+    clientIdFormItem,
+    clientSecretFormItem,
+    ...tokenEndpointAuthOptionsFormItems,
+    {
+      ...scopeFormItem,
+      required: true,
+    },
+    {
+      key: 'acceptStringTypedBooleanClaims',
+      label: 'Accept String-typed Boolean Claims',
+      description:
+        'Whether to accept string-typed boolean claims. For standard OIDC protocol, some claims such as `email_verified` and `phone_verified` are boolean-typed, but some providers may return them as string-typed. Enabling this option will convert string-typed boolean claims to boolean-typed.',
+      type: ConnectorConfigFormItemType.Switch,
+      required: false,
+      defaultValue: false,
+    },
+    {
+      key: 'trustUnverifiedEmail',
+      label: 'Trust Unverified Email',
+      description:
+        'Whether to trust the `email` claim even when `email_verified` is missing or false. Enable this only if you trust the provider to supply verified emails.',
+      tooltip:
+        "Some OIDC identity providers don't return the `email_verified` claim, so emails may be unverified. Logto won’t sync unverified email to the user profile by default. Enable this only if you fully trust the identity provider's email validation.",
+      type: ConnectorConfigFormItemType.Switch,
+      required: false,
+      defaultValue: false,
+    },
+    // [NiceMatrix] identity-id claim selector.
+    {
+      key: 'identitySource',
+      label: 'Identity Source Claim',
+      description:
+        'Which ID Token claim is used as the immutable Logto identity id. `sub` (default) is the standard OIDC subject (pairwise/per-application for most providers). `oid` is the Microsoft Entra object id — tenant-stable and aligned with Microsoft Graph; use it for Microsoft so the identity survives connector/app re-creation.',
+      type: ConnectorConfigFormItemType.Select,
+      selectItems: [
+        { value: 'sub', title: 'sub (standard OIDC subject)' },
+        { value: 'oid', title: 'oid (Microsoft Entra object id)' },
+      ],
+      required: false,
+      defaultValue: 'sub',
+    },
+    {
+      key: 'idTokenVerificationConfig',
+      label: 'ID Token Verification Config',
+      type: ConnectorConfigFormItemType.Json,
+      required: true,
+      defaultValue: {
+        jwksUri: '<jwks-uri>',
+      },
+    },
+    {
+      key: 'authRequestOptionalConfig',
+      label: 'Authentication Request Optional Config',
+      type: ConnectorConfigFormItemType.Json,
+      required: false,
+      defaultValue: {},
+    },
+    {
+      key: 'customConfig',
+      label: 'Custom Config',
+      type: ConnectorConfigFormItemType.Json,
+      required: false,
+      defaultValue: {},
+    },
+  ],
+  isTokenStorageSupported: true,
+};
+
+export const defaultTimeout = 5000;

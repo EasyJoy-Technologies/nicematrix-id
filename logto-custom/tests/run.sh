@@ -31,3 +31,8 @@ cp "$ROOT/overrides/packages/core/src/libraries/hook/region-routing.ts" "$TMPDIR
   --strict false --skipLibCheck --outDir "$TMPDIR" "$TMPDIR/region-routing.ts"
 cp "$TMPDIR/region-routing.js" /tmp/region-routing.js
 node "$ROOT/tests/test-region-routing.js"
+
+echo "[extra] Running pure-JS standalone override tests..."
+node "$ROOT/tests/test-by-identity.js"
+node "$ROOT/tests/test-verification-records.js"
+node "$ROOT/tests/test-oidc-identity-source.js"
