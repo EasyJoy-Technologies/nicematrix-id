@@ -46,6 +46,13 @@ const STORAGE_KEY_CAPS = 'nmx_native_caps';
 const STORAGE_KEY_SCHEME = 'nmx_native_scheme';
 const STORAGE_KEY_SLUG = 'nmx_app_slug';
 
+// [NiceMatrix] Region-aware social-button visibility (independent of native_caps).
+// Lets a calling App declare which standard social providers (apple / google /
+// microsoft / facebook / github / ...) the hosted login page should show or hide,
+// e.g. a cn build hides google + facebook. See shouldHideSocialTarget() below.
+const STORAGE_KEY_HIDE_SOCIAL = 'nmx_hide_social';
+const STORAGE_KEY_SHOW_SOCIAL = 'nmx_show_social';
+
 // Hard whitelist. Apple / Google / Microsoft / Facebook / GitHub / line / etc
 // MUST NEVER appear here — they go through standard OAuth.
 const TAKEOVER_TARGETS = new Set(['wechat', 'alipay', 'qq']);
@@ -100,18 +107,32 @@ export const captureNativeCapsFromUrl = (): void => {
     const caps = params.get('native_caps');
     const scheme = params.get('native_scheme');
     const slug = params.get('app_slug');
+    // [NiceMatrix] region-aware social-button visibility params (orthogonal to
+    // native_caps; either, both, or neither may be present).
+    const hideSocial = params.get('hide_social');
+    const showSocial = params.get('show_social');
 
     // Only write keys that are present in this URL. Allow partial deep links.
     if (caps !== null) sessionStorage.setItem(STORAGE_KEY_CAPS, caps);
     if (scheme !== null) sessionStorage.setItem(STORAGE_KEY_SCHEME, scheme);
     if (slug !== null) sessionStorage.setItem(STORAGE_KEY_SLUG, slug);
+    if (hideSocial !== null) sessionStorage.setItem(STORAGE_KEY_HIDE_SOCIAL, hideSocial);
+    if (showSocial !== null) sessionStorage.setItem(STORAGE_KEY_SHOW_SOCIAL, showSocial);
 
     // Strip our keys from the URL so Logto's downstream code sees a clean
     // search string. Match upstream's strip behaviour for `app_id` etc.
-    if (caps !== null || scheme !== null || slug !== null) {
+    if (
+      caps !== null ||
+      scheme !== null ||
+      slug !== null ||
+      hideSocial !== null ||
+      showSocial !== null
+    ) {
       params.delete('native_caps');
       params.delete('native_scheme');
       params.delete('app_slug');
+      params.delete('hide_social');
+      params.delete('show_social');
       const qs = params.toString();
       const next = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
       window.history.replaceState({}, '', next);
@@ -189,6 +210,85 @@ export const shouldHideTarget = (target: string): boolean => {
   return !validated.caps.has(lower);
 };
 
+// A social connector target is a lowercase identifier (e.g. `google`, `facebook`,
+// `apple`, `wechat`). Validate CSV entries against this shape and silently drop
+// anything else, so a malformed param can never widen behaviour unexpectedly.
+const SOCIAL_TARGET_RE = /^[a-z0-9._-]{1,64}$/;
+
+const parseSocialCsv = (raw: string | null): Set<string> => {
+  const out = new Set<string>();
+  for (const entry of parseCsv(raw)) {
+    if (SOCIAL_TARGET_RE.test(entry)) {
+      out.add(entry);
+    }
+  }
+  return out;
+};
+
+type SocialVisibilityRule = {
+  /** Present ⇒ whitelist: only these targets are shown. */
+  show?: Set<string>;
+  /** Present ⇒ blacklist: these targets are hidden. */
+  hide?: Set<string>;
+};
+
+/**
+ * Read the region-aware social-visibility rule from sessionStorage.
+ * Returns null when NEITHER param was provided (PC / intl / no-App entries),
+ * in which case callers must treat every connector as visible (passthrough,
+ * byte-identical to upstream).
+ *
+ * A param that is present but parses to an empty set is preserved as an empty
+ * Set (intentional): `show_social=` means "show no social provider" (fail-safe
+ * hide-all), `hide_social=` is a no-op blacklist.
+ */
+export const readSocialVisibilityRule = (): SocialVisibilityRule | null => {
+  let hideRaw: string | null = null;
+  let showRaw: string | null = null;
+  try {
+    hideRaw = sessionStorage.getItem(STORAGE_KEY_HIDE_SOCIAL);
+    showRaw = sessionStorage.getItem(STORAGE_KEY_SHOW_SOCIAL);
+  } catch {
+    return null; // Private-mode storage failure → passthrough.
+  }
+
+  if (hideRaw === null && showRaw === null) {
+    return null; // No App-declared rule → show everything.
+  }
+
+  return {
+    show: showRaw === null ? undefined : parseSocialCsv(showRaw),
+    hide: hideRaw === null ? undefined : parseSocialCsv(hideRaw),
+  };
+};
+
+/**
+ * Returns true if the given social connector target should be HIDDEN from the
+ * social sign-in button list per the App-declared `show_social` / `hide_social`
+ * rule (e.g. a cn build hiding google + facebook).
+ *
+ * Precedence (both params may coexist):
+ *   visible = (show absent OR target ∈ show) AND (target ∉ hide)
+ *   hidden  = NOT visible
+ * i.e. `show` is a whitelist that defines the universe; `hide` subtracts from it.
+ *
+ * GUARDRAIL: this only ever runs against SOCIAL connector targets. Email /
+ * password / username primary sign-in live in a separate `signInMethods` array
+ * that never reaches this code, so they can never be hidden by these params —
+ * the guardrail is structural, not a denylist.
+ *
+ * Passthrough: no rule declared → never hide (returns false).
+ */
+export const shouldHideSocialTarget = (target: string): boolean => {
+  const rule = readSocialVisibilityRule();
+  if (!rule) return false; // No App context → never hide.
+  const lower = target.toLowerCase();
+  const inShow = rule.show ? rule.show.has(lower) : true; // show absent ⇒ universe = all
+  const inHide = rule.hide ? rule.hide.has(lower) : false;
+  const visible = inShow && !inHide;
+  return !visible;
+};
+
 /**
  * Decide whether to take over the click for this connector.
  * Returns the custom-scheme URL to navigate to if takeover applies,
@@ -233,8 +333,11 @@ export const _internals = {
   STORAGE_KEY_CAPS,
   STORAGE_KEY_SCHEME,
   STORAGE_KEY_SLUG,
+  STORAGE_KEY_HIDE_SOCIAL,
+  STORAGE_KEY_SHOW_SOCIAL,
   TAKEOVER_TARGETS,
   SCHEME_RE,
   DANGEROUS_SCHEMES,
+  SOCIAL_TARGET_RE,
   SLUG_RE,
 };

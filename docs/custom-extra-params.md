@@ -101,3 +101,60 @@ values ('admin', '<21-char-nanoid>', 'NiceMatrix Login Control (cn)', null,
 ```
 
 **激活后验证**：cn 托管登录（带 `region=cn`）→ 只 prod-3 收到、跑 `applyDeviceLoginControl`，prod-1 不再收到 cn 事件；intl 托管登录（`region=intl`/缺省）→ 只 prod-1 收到。回滚 = 删除 cn hook + 清除 prod-1 hook 的 `x-nicematrix-region` header（恢复 region-agnostic）。
+
+---
+
+## 区域感知的三方登录按钮显隐：`hide_social` / `show_social`（2026-06-17）
+
+> 用途：让客户端 / 业务 App 控制 Logto 托管登录页**显示哪些三方登录按钮**。典型场景：中国区构建包隐藏 Google / Facebook。
+
+### 两个参数（正交于 `native_caps`）
+
+| 参数 | 语义 | 例 |
+|------|------|----|
+| `hide_social=<csv>` | 黑名单：列出的 target 隐藏，其余照常显示 | `?hide_social=google,facebook` |
+| `show_social=<csv>` | 白名单：只显示列出的 target，其余全部隐藏 | `?show_social=apple,wechat` |
+
+二者可单用、可并用，可都不传。**都不传 = 与上游字节级等价**（PC / intl / 不带参数完全不受影响）。
+
+并用时的优先级（确定性）：
+```
+visible = (show 缺省 或 target ∈ show) 且 (target ∉ hide)
+hidden  = ¬visible
+```
+即 `show` 定义可见全集（白名单），`hide` 再从中扣除。`show_social=`（空值）= 隐藏所有三方（fail-safe）；`hide_social=`（空值）= 空黑名单（no-op）。
+
+`<csv>` 每项是三方连接器 target（小写：`google` / `facebook` / `apple` / `wechat` / ...），不合法形状（含空格/控制符/超 64 字符）静默丢弃。
+
+### 护栏（结构性，非黑名单）
+
+**只能影响三方按钮，永远无法隐藏邮箱 / 密码 / 用户名主登录**。原因：主登录方式属于 `signIn.methods` 数组，过滤逻辑只作用于 `socialConnectors` 数组，物理上拿不到主登录方式 —— 护栏是结构性的，不依赖任何关键字列表。
+
+### 改动文件（4 个 override + 1 新建）
+
+所有改动标 `[NiceMatrix]` 注释。
+
+| # | 文件 | 改动 |
+|---|------|------|
+| 1 | `packages/schemas/src/consts/oidc.ts` | `ExtraParamsKey` 加 `HideSocial`/`ShowSocial` + zod guard + 类型 |
+| 2 | `packages/core/src/oidc/utils.ts` | `buildLoginPromptUrl()` 增 2 个 `appendExtraParam`（让参数穿过 `/oidc/auth → /sign-in` 重定向到达 SPA） |
+| 3 | `packages/experience/src/utils/native-caps.ts` | 新增 `readSocialVisibilityRule()` / `shouldHideSocialTarget()` 纯函数 + capture 两个新参数到 sessionStorage |
+| 4 | `packages/experience/src/utils/sign-in-experience.ts`（**新 override**） | 在上游平台过滤之后追加 `shouldHideSocialTarget` 过滤；google 被隐藏时同时 `googleOneTap=undefined`（避免 One Tap 卡片绕过隐藏） |
+
+> **为什么过滤点放在 `sign-in-experience.ts` 而非 `SocialSignInList`**：`socialConnectors.length` 同时驱动 SignIn/Register 页那条 “**or**” 分隔线与若干空态分支。只在 `SocialSignInList` 内部过滤会在白名单清空列表时留下**孤儿分隔线**。`parseSignInExperienceResponse` 是所有消费方（分隔线判断 / SocialSignInList / DirectSignIn / web callback 解析）读取连接器列表的**唯一入口**，在此过滤一处生效、全局一致、无回归。
+
+### 数据流
+
+```
+客户端 signIn(?hide_social=google,facebook 或 show_social=...)
+  → /oidc/auth（oidc-provider 默认会剥离非标准参数）
+  → buildLoginPromptUrl 用 appendExtraParam 显式转发
+  → /sign-in?hide_social=...（experience SPA）
+  → handleSearchParametersData() → captureNativeCapsFromUrl() 写入 sessionStorage 并清理 URL
+  → getSignInExperienceSettings() → parseSignInExperienceResponse() 按规则过滤 socialConnectors
+  → 登录页只渲染可见三方按钮
+```
+
+> 纯前端显隐：`/.well-known/experience` 响应**仍包含**被隐藏的连接器（只是不渲染）。这是有意选择 —— 满足"区域差异化按钮"诉求且不触碰服务端配置（决策：Xianglin，2026-06-17）。
+
+单元测试：`logto-custom/tests/test-native-caps.js`（`bash logto-custom/tests/run.sh`）。

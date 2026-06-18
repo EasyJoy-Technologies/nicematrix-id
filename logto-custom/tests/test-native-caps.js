@@ -189,6 +189,85 @@ check('does not hide apple', !mod.shouldHideTarget('apple'));
 setCaps(undefined);
 check('no App context -> never hide', !mod.shouldHideTarget('wechat'));
 
+// ---------------------------------------------------------------------------
+// Region-aware social-button visibility (hide_social / show_social).
+// These are ORTHOGONAL to native_caps; helper clears + sets only these keys.
+// ---------------------------------------------------------------------------
+function setSocial(hide, show) {
+  store.clear();
+  if (hide !== undefined) store.set('nmx_hide_social', hide);
+  if (show !== undefined) store.set('nmx_show_social', show);
+}
+
+console.log('--- shouldHideSocialTarget: passthrough (no rule) ---');
+setSocial(undefined, undefined);
+check('no rule -> google visible', !mod.shouldHideSocialTarget('google'));
+check('no rule -> facebook visible', !mod.shouldHideSocialTarget('facebook'));
+check('no rule -> apple visible', !mod.shouldHideSocialTarget('apple'));
+check('no rule -> readSocialVisibilityRule null', mod.readSocialVisibilityRule() === null);
+
+console.log('--- shouldHideSocialTarget: blacklist (hide_social) ---');
+setSocial('google,facebook', undefined);
+check('hide=google,facebook -> hides google', mod.shouldHideSocialTarget('google'));
+check('hide=google,facebook -> hides facebook', mod.shouldHideSocialTarget('facebook'));
+check('hide=google,facebook -> apple still visible', !mod.shouldHideSocialTarget('apple'));
+check('hide=google,facebook -> wechat still visible', !mod.shouldHideSocialTarget('wechat'));
+check('blacklist is case-insensitive (GOOGLE)', mod.shouldHideSocialTarget('GOOGLE'));
+
+console.log('--- shouldHideSocialTarget: whitelist (show_social) ---');
+setSocial(undefined, 'apple,wechat');
+check('show=apple,wechat -> apple visible', !mod.shouldHideSocialTarget('apple'));
+check('show=apple,wechat -> wechat visible', !mod.shouldHideSocialTarget('wechat'));
+check('show=apple,wechat -> google hidden', mod.shouldHideSocialTarget('google'));
+check('show=apple,wechat -> facebook hidden', mod.shouldHideSocialTarget('facebook'));
+
+console.log('--- shouldHideSocialTarget: empty show = hide all (fail-safe) ---');
+setSocial(undefined, '');
+check('show= (empty) -> apple hidden', mod.shouldHideSocialTarget('apple'));
+check('show= (empty) -> google hidden', mod.shouldHideSocialTarget('google'));
+check('show= (empty) -> rule is non-null', mod.readSocialVisibilityRule() !== null);
+
+console.log('--- shouldHideSocialTarget: empty hide = no-op ---');
+setSocial('', undefined);
+check('hide= (empty) -> google visible', !mod.shouldHideSocialTarget('google'));
+check('hide= (empty) -> apple visible', !mod.shouldHideSocialTarget('apple'));
+
+console.log('--- shouldHideSocialTarget: show + hide combined ---');
+setSocial('wechat', 'apple,wechat');
+check('show=apple,wechat & hide=wechat -> apple visible', !mod.shouldHideSocialTarget('apple'));
+check('show=apple,wechat & hide=wechat -> wechat hidden (hide wins)', mod.shouldHideSocialTarget('wechat'));
+check('show=apple,wechat & hide=wechat -> google hidden (not in show)', mod.shouldHideSocialTarget('google'));
+
+console.log('--- shouldHideSocialTarget: malformed entries dropped ---');
+setSocial('goo gle,face\u0000book,google', undefined);
+check('malformed "goo gle" dropped -> google-with-space not matched as google',
+  // "google" (the valid 3rd entry) IS hidden; the malformed ones are simply ignored.
+  mod.shouldHideSocialTarget('google'));
+check('malformed entries do not crash -> facebook visible (only valid google hidden)',
+  !mod.shouldHideSocialTarget('facebook'));
+
+console.log('--- guardrail: never hides primary login identifiers ---');
+// These are NOT social targets; even if an App maliciously lists them they only
+// affect the social array (which never contains email/password). The function
+// itself has no special-casing, but documents the structural guarantee: callers
+// only ever pass SOCIAL connector targets. We assert the function treats them as
+// ordinary targets (so a stray show-list still wouldn't surface them anywhere).
+setSocial('email,password,username', undefined);
+check('hide=email,password,username -> apple visible (apple not in this hide list)', !mod.shouldHideSocialTarget('apple'));
+check('hide=email,password,username -> google visible (not in this hide list)', !mod.shouldHideSocialTarget('google'));
+setSocial(undefined, 'email');
+check('show=email -> google hidden (whitelist excludes it)', mod.shouldHideSocialTarget('google'));
+check('show=email -> apple hidden (whitelist excludes it)', mod.shouldHideSocialTarget('apple'));
+
+console.log('--- SOCIAL_TARGET_RE shape ---');
+const { SOCIAL_TARGET_RE } = mod._internals;
+check('accepts google', SOCIAL_TARGET_RE.test('google'));
+check('accepts azuread', SOCIAL_TARGET_RE.test('azuread'));
+check('accepts dotted target', SOCIAL_TARGET_RE.test('sign.in.apple'));
+check('rejects space', !SOCIAL_TARGET_RE.test('goo gle'));
+check('rejects empty', !SOCIAL_TARGET_RE.test(''));
+check('rejects 65 chars', !SOCIAL_TARGET_RE.test('a'.repeat(65)));
+
 console.log('---');
 console.log('PASS ' + pass + '  FAIL ' + fail);
 process.exit(fail ? 1 : 0);

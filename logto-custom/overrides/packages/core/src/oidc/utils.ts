@@ -2,7 +2,8 @@
  * [NiceMatrix override] vs upstream: this file is a near-verbatim copy of
  *   logto-upstream/packages/core/src/oidc/utils.ts (1.39.0)
  * with ONE delta block inside `buildLoginPromptUrl()`:
- *   +3 appendExtraParam(...) calls for AppSlug / NativeCaps / NativeScheme.
+ *   +5 appendExtraParam(...) calls for AppSlug / NativeCaps / NativeScheme /
+ *   HideSocial / ShowSocial.
  * Search this file for the `[NiceMatrix override]` marker to find the delta.
  * On upstream sync, re-diff against upstream and re-apply the marker block only.
  */
@@ -380,6 +381,13 @@ export const buildLoginPromptUrl = (
   appendExtraParam(ExtraParamsKey.AppSlug);
   appendExtraParam(ExtraParamsKey.NativeCaps);
   appendExtraParam(ExtraParamsKey.NativeScheme);
+  // [NiceMatrix override] Region-aware social-button visibility (hide_social /
+  // show_social). Same rationale as the 3 lines above: oidc-provider strips
+  // non-standard params on the /oidc/auth -> /sign-in redirect, so forward them
+  // explicitly for the experience SPA to capture. Absent on PC entries =
+  // byte-identical to upstream.
+  appendExtraParam(ExtraParamsKey.HideSocial);
+  appendExtraParam(ExtraParamsKey.ShowSocial);
 
   // Reuse DirectSignIn page to handle Google One Tap credential.
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing

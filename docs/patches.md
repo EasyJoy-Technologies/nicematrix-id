@@ -107,3 +107,14 @@ No dist bundle patching is used in the active workflow.
      `step_confirm_warning_no_email` / `create_success_no_email`（4 locale 齐）。
    - 后端兜底：`nicematrix-backend` user-deletion sweeper（见该 repo
      docs/account-deletion.md）。
+
+10. 区域感知三方登录按钮显隐 `hide_social` / `show_social`（2026-06-17，决策：Xianglin）：
+    - Override 文件（4 改 + 1 新建）：
+      - `packages/schemas/src/consts/oidc.ts`（ExtraParamsKey `HideSocial`/`ShowSocial`）
+      - `packages/core/src/oidc/utils.ts`（`buildLoginPromptUrl` +2 `appendExtraParam`）
+      - `packages/experience/src/utils/native-caps.ts`（`shouldHideSocialTarget` 纯函数 + capture）
+      - `packages/experience/src/utils/sign-in-experience.ts`（**新** override：唯一过滤点 + google 隐藏时关 One Tap）
+    - 用途：客户端传 `?hide_social=google,facebook`（黑名单）或 `?show_social=apple,wechat`（白名单）控制托管登录页三方按钮显隐；中国区构建包据此隐藏 Google/Facebook。
+    - 护栏：结构性，只作用于 `socialConnectors` 数组，永不影响邮箱/密码主登录。
+    - 纯前端显隐（`/.well-known/experience` 仍下发被隐藏连接器，只是不渲染）。
+    - 都不传 = 上游字节级等价；详见 `custom-extra-params.md`。单测 `logto-custom/tests/test-native-caps.js`。

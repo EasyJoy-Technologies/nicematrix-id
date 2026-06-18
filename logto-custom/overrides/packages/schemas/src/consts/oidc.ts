@@ -107,6 +107,21 @@ export enum ExtraParamsKey {
    */
   NativeScheme = 'native_scheme',
   /**
+   * [NiceMatrix] Comma-separated list of social connector targets to HIDE on the
+   * hosted login page (blacklist), e.g. `google,facebook` for a cn build.
+   * Client-side only (pure UI visibility); the connector is still returned by
+   * `/.well-known/experience`. Only affects SOCIAL buttons — email/password are
+   * never hideable. See `packages/experience/src/utils/native-caps.ts`.
+   */
+  HideSocial = 'hide_social',
+  /**
+   * [NiceMatrix] Comma-separated whitelist of social connector targets to SHOW on
+   * the hosted login page; any social provider not listed is hidden. Combine with
+   * HideSocial: visible = (target in show, or show absent) AND target not in hide.
+   * Client-side only; never affects email/password. See native-caps.ts.
+   */
+  ShowSocial = 'show_social',
+  /**
    * [NiceMatrix] The deployment region this sign-in belongs to (`intl` | `cn`).
    * Self-reported by the client (= its build flavor / the API base it talks to).
    * Passed through to the PostSignIn webhook payload so that, when the SAME
@@ -149,6 +164,8 @@ export const extraParamsObjectGuard = z
     [ExtraParamsKey.AppSlug]: z.string(),
     [ExtraParamsKey.NativeCaps]: z.string(),
     [ExtraParamsKey.NativeScheme]: z.string(),
+    [ExtraParamsKey.HideSocial]: z.string(),
+    [ExtraParamsKey.ShowSocial]: z.string(),
     [ExtraParamsKey.Region]: z.string(),
   })
   .partial() satisfies ToZodObject<ExtraParamsObject>;
@@ -167,5 +184,7 @@ export type ExtraParamsObject = Partial<{
   [ExtraParamsKey.AppSlug]: string;
   [ExtraParamsKey.NativeCaps]: string;
   [ExtraParamsKey.NativeScheme]: string;
+  [ExtraParamsKey.HideSocial]: string;
+  [ExtraParamsKey.ShowSocial]: string;
   [ExtraParamsKey.Region]: string;
 }>;
