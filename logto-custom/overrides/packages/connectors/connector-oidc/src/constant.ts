@@ -1,6 +1,6 @@
 // [NiceMatrix override] connector-oidc constant.
 //
-// Delta vs upstream 1.40.1 (search "[NiceMatrix]"): adds an `identitySource`
+// Delta vs upstream 1.41.0 (unchanged since 1.40.1) (search "[NiceMatrix]"): adds an `identitySource`
 // Select form item so the identity-id claim selector is editable/visible in the
 // Logto Console connector form and is not dropped on connector edit-save.
 // Default 'sub' = upstream behavior; 'oid' is used by the Microsoft connector.

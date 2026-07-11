@@ -1,7 +1,7 @@
 /**
  * [NiceMatrix] Override of upstream SocialCallback.
  *
- * Two deltas on top of the upstream 1.40.1 base:
+ * Two deltas on top of the upstream 1.41.0 base:
  *   1. `extractConnectorIdFromPath()` defensive fallback for `connectorId`.
  *      Upstream 1.40 renders SocialCallback inside <Routes> so `useParams()`
  *      normally resolves; we keep the path-parse fallback as defence in depth
@@ -33,6 +33,7 @@ import {
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
 import { accountCenterBasePath } from '@ac/utils/account-center-route';
+import { canManageSocialIdentitiesWithoutVerification } from '@ac/utils/security-page';
 import { accountStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
@@ -73,9 +74,11 @@ const SocialCallback = () => {
     isLoadingExperience,
     refreshUserInfo,
     setToast,
+    userInfo,
     verificationId,
     setVerificationId,
   } = useContext(PageContext);
+  const canSkipVerification = canManageSocialIdentitiesWithoutVerification(userInfo);
   const verifySocialVerificationRequest = useApi(verifySocialVerification);
   const linkSocialIdentityRequest = useApi(linkSocialIdentity);
   const replaceSocialIdentityRequest = useApi(replaceSocialIdentity);
@@ -90,11 +93,12 @@ const SocialCallback = () => {
   const connectorName = connector ? getLocalizedConnectorName(connector, language) : undefined;
   const storedSocialFlow = connectorId ? accountStorage.socialFlow.get(connectorId) : undefined;
 
-  const redirectToReverify = useCallback(() => {
+  const redirectToReverify = useCallback(async () => {
     if (!connectorId) {
       return;
     }
 
+    await refreshUserInfo();
     setStartedConnectorId(undefined);
     setVerificationId(undefined);
     setToast(t('account_center.verification.verification_required'));
@@ -104,7 +108,15 @@ const SocialCallback = () => {
         : getSocialAddRoute(connectorId),
       { replace: true }
     );
-  }, [connectorId, navigate, setToast, setVerificationId, storedSocialFlow?.mode, t]);
+  }, [
+    connectorId,
+    navigate,
+    refreshUserInfo,
+    setToast,
+    setVerificationId,
+    storedSocialFlow?.mode,
+    t,
+  ]);
 
   const finishLinkFlow = useCallback(async () => {
     if (!connectorId || !connectorName) {
@@ -123,7 +135,7 @@ const SocialCallback = () => {
       return;
     }
 
-    if (!verificationId) {
+    if (!verificationId && !canSkipVerification) {
       return;
     }
 
@@ -241,6 +253,7 @@ const SocialCallback = () => {
     setToast,
     startedConnectorId,
     storedSocialFlow,
+    canSkipVerification,
     verificationId,
     verifySocialVerificationRequest,
     t,
