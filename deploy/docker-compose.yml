@@ -47,6 +47,10 @@ services:
       PORT: ${LOGTO_PORT}
       TRUST_PROXY_HEADER: "true"
       NODE_ENV: production
+      # Secret Vault KEK (AES-256-GCM base64). Encrypts upstream IdP token sets
+      # (e.g. OneDrive access/refresh) at rest. NEVER rotate: rotation makes all
+      # previously stored tokens permanently undecryptable. Value lives in id.env.
+      SECRET_VAULT_KEK: ${SECRET_VAULT_KEK}
     ports:
       - "3001:${LOGTO_PORT}"
 
