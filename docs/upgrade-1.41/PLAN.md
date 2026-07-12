@@ -166,3 +166,26 @@ The `LOGTO_VERSION` env (drives the admin "ID System Status" tile) and the MEMOR
 **CURRENT_STAGE:** analysis complete; drift recomputed (28/40/20/0); tags fetched; submodule still pinned at 1.40.1 (nothing built/deployed).
 **NEXT_ACTION:** on GO — Stage 0 (branch + staging DB backup + image backup tag), then submodule bump + merges.
 **NOTE:** v1.41.0 tag fetched into local submodule object store only; working tree + runtime unchanged by this analysis.
+
+---
+
+## 12. EXECUTION LOG (2026-07-11, staging)
+
+- Stage 0 ✅ branch `upgrade/logto-1.41`; image backup `pre-1.41-backup` (=6a6ed7d); DB dump `/root/backups/logto_staging_pre_v1.41.0_20260711_1729.sql` (11M)
+- Stage 1 ✅ submodule → v1.41.0 (91e55698a). Drift re-verified live: 28/40/20/0 identical to plan.
+- Stage 2-4 ✅ all 20 merges done. Deviations from plan (both safe simplifications):
+  - **SocialSection/index.tsx override DROPPED** — upstream 1.41 removed `isApple` from `getLogoUrl` entirely; our 1-line delta became meaningless. Now pure upstream.
+  - **MfaSection/index.module.scss override DROPPED** — upstream moved MFA rows into shared `Security/components/SecurityRow` (new files); old selectors gone. Mobile layout now upstream-managed.
+  - Home page: wrapped MfaSection in new `MfaVerificationsProvider` + added `PasskeySection` (renders null unless passkey sign-in enabled) — required or MFA card stays skeleton.
+  - Home scss: added `.content` (Sessions page imports Home styles as homeStyles).
+  - App.tsx: rebuilt on upstream 1.41 (Sessions route kept live at /sessions); root renders merged Home; /profile+/security redirect to /; upstream's root→first-nav-item redirect removed (would loop with our redirects).
+- Stage 5 ✅ image built, tagged `v1.41.0` + `latest` (b5b1968746ec). In-image: core 1.41.0, core-kit 2.11.0, smtp2go linked, brand TOTP issuer + token-exchange override + Grant 365d + region-routing all present in build output.
+- Stage 6 ✅ staging deployed. 9 alterations consumed (ran via one-shot container on nicematrix-id_default network w/ explicit DB_URL; `docker exec` in the crash-looping container gets killed — note for prod). Smoke:
+  - OIDC discovery/JWKS 200; console/account/sign-in 200
+  - M2M token OK (resource id.nicematrix.com/admin/api)
+  - **token-exchange returns access+id+refresh token** (app-access-control no-op pass confirmed); refresh grant rotates; aud=api-staging; backend /v1/me 200
+  - custom routes live: by-identity 400-on-bad-args, verification-records/assert 422 collapsed
+  - TOTP replay-protection code in build (5 hits updateUserTotpMfaVerificationLastUsed); message rate guard in build; username-dot regex OK; webhook deviceRef+appSlug + x-nicematrix-region in build
+  - DB: users.is_password_expired present; policies columns added; hideLogtoBranding still true (OSS allow works)
+  - staging LOGTO_VERSION → 1.41.0, backend restarted, health OK
+- **NEXT: Stage 7 prod-1 — awaiting explicit GO** (browser-level Account Center visual check on staging recommended first)
