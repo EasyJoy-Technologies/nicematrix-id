@@ -95,5 +95,6 @@ const { profile } = await getScopedProfile(queries, libraries, scopes, userId);
 
 ## 5. 状态
 
-- **P1/P2 修复:** 待批准执行(方案见 §3)。
+- **P1/P2 修复:** ✅ 代码已修(2026-07-11)。`avatar.ts` L112/L138 改为 `const { profile } = await getScopedProfile(...)`,并同 upstream `index.ts` 模式把 `updatedUser` 作第三参传入 `getAccountCenterFilteredProfile`(响应带 `hasSecurityVerificationMethod`,与 PATCH profile 路由行为一致);DELETE 路由 status 白名单补 `500` 与 POST 对齐。
+- 部署状态见本目录 `FIX-DEPLOY.md`(staging 冒烟 → prod-1)。
 - 本报告随 repo 提交,路径 `docs/upgrade-1.41/POST-UPGRADE-REVIEW.md`。

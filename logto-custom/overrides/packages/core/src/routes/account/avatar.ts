@@ -109,8 +109,8 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
       const updatedUser = await updateUserById(userId, { avatar: uploadedUrl });
       ctx.appendDataHookContext('User.Data.Updated', { user: updatedUser });
 
-      const profile = await getScopedProfile(queries, libraries, scopes, userId);
-      ctx.body = getAccountCenterFilteredProfile(profile, ctx.accountCenter);
+      const { profile } = await getScopedProfile(queries, libraries, scopes, userId);
+      ctx.body = getAccountCenterFilteredProfile(profile, ctx.accountCenter, updatedUser);
 
       return next();
     }
@@ -120,7 +120,7 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
     `${accountApiPrefix}/avatar`,
     koaGuard({
       response: userProfileResponseGuard.partial(),
-      status: [200, 400, 401],
+      status: [200, 400, 401, 500],
     }),
     async (ctx, next) => {
       const { id: userId, scopes } = ctx.auth;
@@ -135,8 +135,8 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
       const updatedUser = await updateUserById(userId, { avatar: null });
       ctx.appendDataHookContext('User.Data.Updated', { user: updatedUser });
 
-      const profile = await getScopedProfile(queries, libraries, scopes, userId);
-      ctx.body = getAccountCenterFilteredProfile(profile, ctx.accountCenter);
+      const { profile } = await getScopedProfile(queries, libraries, scopes, userId);
+      ctx.body = getAccountCenterFilteredProfile(profile, ctx.accountCenter, updatedUser);
 
       return next();
     }

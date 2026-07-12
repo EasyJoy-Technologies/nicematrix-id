@@ -69,8 +69,18 @@ No dist bundle patching is used in the active workflow.
 1. Bump `logto-upstream` submodule tag.
 2. Rebuild image.
 3. Resolve override drift if upstream files changed.
-4. Run smoke tests (sign-in, menu navigation, core pages).
-5. Update docs.
+4. **Seam check for OUR-NEW files**: drift tooling only diffs override files against
+   upstream; it cannot see when one of OUR-NEW files (e.g. `account/avatar.ts`,
+   `account/deletion-request.ts`, `admin-user/verification-records.ts`) calls an
+   upstream-internal function whose **signature/return shape changed** this release.
+   For every OUR-NEW file, grep its imports of upstream modules; if any imported
+   module appears in the upstream CHANGED list, manually re-verify each call site.
+   (Lesson from 1.41: `getScopedProfile` return changed to `{ profile, user }` —
+   `avatar.ts` call sites were missed → 500 on avatar upload/delete.)
+5. Run smoke tests (sign-in, menu navigation, core pages) — include one **real
+   user-token** round-trip per OUR-NEW route (e.g. actual avatar upload), not just
+   route-existence/auth curls.
+6. Update docs.
 
 6. AppLoading 加载动画 Logo 尺寸限制：
    - Override 文件：`logto-custom/overrides/packages/console/src/components/AppLoading/index.module.scss`
