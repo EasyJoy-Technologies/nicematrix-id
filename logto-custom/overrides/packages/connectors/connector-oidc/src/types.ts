@@ -1,6 +1,6 @@
 // [NiceMatrix override] connector-oidc types.
 //
-// Delta vs upstream 1.40.1 (search "[NiceMatrix]"):
+// Delta vs upstream 1.41.0 (unchanged since 1.40.1) (search "[NiceMatrix]"):
 //   1. `oid` added to `idTokenProfileStandardClaimsGuard` so the Microsoft Entra
 //      `oid` claim survives the zod parse (upstream `z.object` strips unknown keys
 //      from `result.data`; `rawData` keeps the full payload but the id selector

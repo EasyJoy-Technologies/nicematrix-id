@@ -1,6 +1,6 @@
 // [NiceMatrix override] connector-oidc index.
 //
-// Delta vs upstream 1.40.1 (search "[NiceMatrix]"): a single block inside
+// Delta vs upstream 1.41.0 (unchanged since 1.40.1) (search "[NiceMatrix]"): a single block inside
 // `parseUserInfoFromIdToken` selects the Logto identity id from the configured
 // `identitySource` claim (default `sub` = upstream). Everything else is a
 // verbatim copy so unrelated OIDC behavior cannot drift.

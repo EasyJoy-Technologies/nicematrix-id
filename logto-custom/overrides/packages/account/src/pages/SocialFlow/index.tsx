@@ -17,7 +17,9 @@ import { getSocialCallbackRoute, securityRoute } from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
 import { accountCenterBasePath } from '@ac/utils/account-center-route';
+// [NiceMatrix] connector-specific callback-origin override (QQ ICP domain).
 import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
+import { canManageSocialIdentitiesWithoutVerification } from '@ac/utils/security-page';
 import { accountStorage, sessionStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
@@ -41,6 +43,7 @@ const SocialFlow = ({ mode }: Props) => {
     refreshUserInfo,
     setToast,
     userInfo,
+    isLoadingUserInfo,
     verificationId,
     setVerificationId,
   } = useContext(PageContext);
@@ -60,19 +63,27 @@ const SocialFlow = ({ mode }: Props) => {
   const duplicateBindingMessage = 'You have already associated this social account.';
   const connectorName = connector ? getLocalizedConnectorName(connector, language) : undefined;
   const storedSocialFlow = connectorId ? accountStorage.socialFlow.get(connectorId) : undefined;
+  const canSkipVerification = canManageSocialIdentitiesWithoutVerification(userInfo);
+  const needsLegacyIdentityVerification = userInfo?.hasSecurityVerificationMethod === true;
+  const isIdentityVerificationReady = Boolean(verificationId) || canSkipVerification;
   const flowKey =
-    verificationId && connectorId ? `${mode}:${connectorId}:${verificationId}` : undefined;
+    isIdentityVerificationReady && connectorId
+      ? `${mode}:${connectorId}:${verificationId ?? 'skip'}`
+      : undefined;
 
-  const resetVerification = useCallback(() => {
+  const resetVerification = useCallback(async () => {
+    await refreshUserInfo();
     setStartedFlowKey(undefined);
     setVerificationId(undefined);
     setToast(t('account_center.verification.verification_required'));
-  }, [setToast, setVerificationId, t]);
+  }, [refreshUserInfo, setToast, setVerificationId, t]);
 
   const handleFlowError = useCallback(
     async (error: unknown) => {
       await handleError(error, {
-        'verification_record.permission_denied': resetVerification,
+        'verification_record.permission_denied': async () => {
+          await resetVerification();
+        },
         'user.social_account_exists_in_profile': async (requestError) => {
           finalizeSocialFlowFailure({
             connectorId,
@@ -121,7 +132,7 @@ const SocialFlow = ({ mode }: Props) => {
   }, [connectorId, navigate, refreshUserInfo]);
 
   useEffect(() => {
-    if (!verificationId) {
+    if (!isIdentityVerificationReady) {
       if (startedFlowKey) {
         setStartedFlowKey(undefined);
       }
@@ -261,6 +272,7 @@ const SocialFlow = ({ mode }: Props) => {
     mode,
     flowKey,
     startedFlowKey,
+    isIdentityVerificationReady,
     storedSocialFlow,
     verificationId,
   ]);
@@ -287,8 +299,21 @@ const SocialFlow = ({ mode }: Props) => {
     );
   }
 
-  if (!verificationId) {
+  if (isLoadingUserInfo || userInfo === undefined) {
+    return <GlobalLoading />;
+  }
+
+  if (!verificationId && needsLegacyIdentityVerification) {
     return <VerificationMethodList />;
+  }
+
+  if (!verificationId && !canSkipVerification) {
+    return (
+      <ErrorPage
+        titleKey="account_center.verification.no_available_methods_title"
+        messageKey="account_center.verification.no_available_methods_description"
+      />
+    );
   }
 
   if (mode === 'add' && hasLinkedConnector) {

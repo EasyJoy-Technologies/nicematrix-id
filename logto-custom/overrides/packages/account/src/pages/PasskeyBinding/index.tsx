@@ -1,6 +1,6 @@
 import Button from '@experience/shared/components/Button';
 import InputField from '@experience/shared/components/InputFields/InputField';
-import { AccountCenterControlValue, MfaFactor, type Mfa } from '@logto/schemas';
+import { AccountCenterControlValue, MfaFactor } from '@logto/schemas';
 import { trySafe } from '@silverhand/essentials';
 import { browserSupportsWebAuthn, startRegistration, WebAuthnError } from '@simplewebauthn/browser';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -22,11 +22,10 @@ import { passkeySuccessRoute, backupCodesGenerateRoute } from '@ac/constants/rou
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
 import SecondaryPageLayout from '@ac/layouts/SecondaryPageLayout';
+import { isWebAuthnConfigurable } from '@ac/utils/security-page';
 import { sessionStorage } from '@ac/utils/session-storage';
 
 import styles from './index.module.scss';
-
-const isWebAuthnEnabled = (mfa?: Mfa) => mfa?.factors.includes(MfaFactor.WebAuthn) ?? false;
 
 const PasskeyBinding = () => {
   const { t } = useTranslation();
@@ -231,14 +230,15 @@ const PasskeyBinding = () => {
 
   if (
     !accountCenterSettings?.enabled ||
-    accountCenterSettings.fields.mfa !== AccountCenterControlValue.Edit
+    (accountCenterSettings.fields.passkey ?? accountCenterSettings.fields.mfa) !==
+      AccountCenterControlValue.Edit
   ) {
     return (
       <ErrorPage titleKey="error.something_went_wrong" messageKey="error.feature_not_enabled" />
     );
   }
 
-  if (!isWebAuthnEnabled(experienceSettings?.mfa)) {
+  if (!isWebAuthnConfigurable(experienceSettings)) {
     return (
       <ErrorPage
         titleKey="error.something_went_wrong"

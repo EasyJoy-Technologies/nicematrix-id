@@ -40,6 +40,15 @@
   padding-left: _.unit(1);
 }
 
+/* [NiceMatrix 1.41] upstream pages (Sessions) import this file as homeStyles
+   and use .content for their main column — keep it for compatibility. */
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: _.unit(5);
+}
+
 .sectionBody {
   display: flex;
   flex-direction: column;

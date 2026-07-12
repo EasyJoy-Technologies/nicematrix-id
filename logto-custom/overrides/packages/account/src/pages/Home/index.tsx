@@ -40,6 +40,10 @@ import { layoutClassNames } from '@ac/constants/layout';
 import DeletionSection from '../Security/DeletionSection';
 import EmailPhoneSection from '../Security/EmailPhoneSection';
 import MfaSection from '../Security/MfaSection';
+// [NiceMatrix 1.41] MfaSection/PasskeySection now read MFA verifications from
+// this shared provider (upstream Security page wraps them the same way).
+import MfaVerificationsProvider from '../Security/MfaVerificationsProvider';
+import PasskeySection from '../Security/PasskeySection';
 import PasswordSection from '../Security/PasswordSection';
 import ProfileSection from '../Security/ProfileSection';
 import SocialSection from '../Security/SocialSection';
@@ -69,7 +73,13 @@ const Home = () => (
         <EmailPhoneSection />
         <PasswordSection />
         <SocialSection />
-        <MfaSection />
+        {/* [NiceMatrix 1.41] provider is required: without it MfaSection stays in
+            its loading skeleton forever. PasskeySection renders null unless
+            passkey sign-in is enabled (mirrors upstream Security page). */}
+        <MfaVerificationsProvider>
+          <PasskeySection />
+          <MfaSection />
+        </MfaVerificationsProvider>
       </div>
     </section>
 

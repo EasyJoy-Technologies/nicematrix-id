@@ -14,7 +14,7 @@
 }
 
 .sectionTitle {
-  padding-left: _.unit(1);
+  padding-inline-start: _.unit(1);
   font: var(--font-label-2);
   color: var(--color-type-primary);
 }
@@ -95,7 +95,7 @@
 
 :global(body.mobile) {
   .sectionTitle {
-    padding-left: 0;
+    padding-inline-start: 0;
   }
 
   .row {

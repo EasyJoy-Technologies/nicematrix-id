@@ -45,6 +45,12 @@ import { i18next } from '#src/utils/i18n.js';
 import { type SubscriptionLibrary } from '../libraries/subscription.js';
 import koaTokenUsageGuard from '../middleware/koa-token-usage-guard.js';
 
+import {
+  appLevelAccessControlMetadataKey,
+  assertUserHasApplicationAccessForOidc,
+  hasAppLevelAccessControlChecked,
+  markAppLevelAccessControlCheckedForOidcContext,
+} from './application-access-control.js';
 import defaults from './defaults.js';
 import { deviceFlowConfig, defaultDeviceCodeTtl } from './device-flow.js';
 import {
@@ -263,6 +269,33 @@ export default function initOidc(
         }
       },
     },
+    loadExistingGrant: async (ctx) => {
+      const { account, client, provider, result, session } = ctx.oidc;
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- Keep oidc-provider's default loadExistingGrant fallback semantics.
+      const grantId = result?.consent?.grantId || (client && session?.grantIdFor(client.clientId));
+      const shouldCheckApplicationAccess =
+        account &&
+        client &&
+        !hasAppLevelAccessControlChecked(result, client.clientId, account.accountId);
+
+      if (grantId && shouldCheckApplicationAccess) {
+        await assertUserHasApplicationAccessForOidc(
+          libraries.applicationAccessControl,
+          client.clientId,
+          account.accountId,
+          client.metadata().appLevelAccessControlEnabled
+        );
+        markAppLevelAccessControlCheckedForOidcContext(
+          ctx.oidc,
+          client.clientId,
+          account.accountId
+        );
+      }
+
+      if (grantId) {
+        return provider.Grant.find(String(grantId));
+      }
+    },
     extraParams: Object.values(ExtraParamsKey),
     extraTokenClaims: async (ctx, token) => {
       const [tokenExchangeClaims, organizationApiResourceClaims, jwtCustomizedClaims] =
@@ -293,8 +326,20 @@ export default function initOidc(
       };
     },
     extraClientMetadata: {
-      properties: Object.values(CustomClientMetadataKey),
+      properties: [...Object.values(CustomClientMetadataKey), appLevelAccessControlMetadataKey],
       validator: (_, key, value) => {
+        if (key === appLevelAccessControlMetadataKey) {
+          if (value === undefined) {
+            return;
+          }
+
+          if (typeof value !== 'boolean') {
+            throw new errors.InvalidClientMetadata(appLevelAccessControlMetadataKey);
+          }
+
+          return;
+        }
+
         validateCustomClientMetadata(key, value);
       },
     },
@@ -399,7 +444,7 @@ export default function initOidc(
       // active at least once every 60 days now stays signed in for up to a
       // full year before being forced through the hosted sign-in page again.
       // This file is otherwise an exact copy of upstream
-      // packages/core/src/oidc/init.ts (logto v1.40.1); keep it in sync on
+      // packages/core/src/oidc/init.ts (logto v1.41.0); keep it in sync on
       // upstream upgrades — see logto-custom/README.md / docs/patches.md.
       Grant: 365 * 3600 * 24 /* 365 days in seconds */,
     },
@@ -424,7 +469,7 @@ export default function initOidc(
   });
 
   addOidcEventListeners(tenantId, oidc, queries);
-  registerGrants(oidc, envSet, queries);
+  registerGrants(oidc, envSet, queries, libraries);
 
   // Provide audit log context for event listeners
   oidc.use(koaAuditLog(queries));
@@ -446,6 +491,7 @@ export default function initOidc(
   oidc.use(async (ctx, next) => {
     const jsonContentType = 'application/json';
     const formUrlEncodedContentType = 'application/x-www-form-urlencoded';
+    const nullByte = String.fromCodePoint(0);
 
     // Replicate the behavior of `oidc-provider` for parsing the request body
     if (ctx.req.readable) {
@@ -459,6 +505,13 @@ export default function initOidc(
         limit: '56kb',
         encoding: charset ?? 'utf8',
       });
+
+      // Reject null bytes: they are invalid in request bodies and, once parsed, a value can reach
+      // the `jsonb` audit log column, which PostgreSQL rejects (error `22P05`) and surfaces as a 500
+      // instead of a clean client error. `InvalidRequest` is rendered as a 400 by `koaOidcErrorHandler`.
+      if (body.includes(nullByte)) {
+        throw new errors.InvalidRequest('null bytes are not allowed in the request body');
+      }
 
       // WARNING: [Registration actions](https://github.com/panva/node-oidc-provider/blob/6a0bcbcd35ed3e6179e81f0ab97a45f5e4e58f48/lib/actions/registration.js#L4) are using
       // 'application/json' for body parsing. Update relatively when we enable that feature.
