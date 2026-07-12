@@ -30,6 +30,18 @@
   flex: 1;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+}
+
+/* [NiceMatrix 1.41] .withSidebar kept from upstream: only used when a
+   full-page nav route (e.g. the new Sessions page) is active. Our merged
+   Home page never activates it, but Sessions would. */
+.withSidebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: _.unit(6);
+  align-items: start;
+  padding: 0 _.unit(6);
 }
 
 .main {
@@ -69,6 +81,10 @@
     flex-direction: column;
   }
 
+  .fullPage {
+    background: var(--color-bg-float-base);
+  }
+
   .container {
     flex: 1;
     display: flex;
@@ -83,6 +99,10 @@
     flex: 1;
     padding: _.unit(4) _.unit(5);
     background: var(--color-bg-float-base);
+  }
+
+  .withMobileTabNav .main {
+    padding-top: _.unit(4);
   }
 
   .cardContainer {
@@ -108,5 +128,16 @@
 
   .signature {
     margin: _.unit(10) 0 _.unit(2);
+  }
+}
+
+/* [NiceMatrix 1.41] upstream desktop rule for full-page sidebar routes
+   (Sessions). No effect on our card layout. */
+:global(body.desktop) {
+  @media only screen and (max-width: 1060px) {
+    .withSidebar {
+      display: flex;
+      justify-content: center;
+    }
   }
 }
