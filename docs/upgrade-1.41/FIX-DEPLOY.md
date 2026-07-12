@@ -25,13 +25,18 @@
   - `/account` `/account/profile` `/account/security` `/oidc/.well-known/openid-configuration` `/console` 全部 200
   - 容器日志 10 分钟窗口无 error/500
 
-## Prod-1 (id.nicematrix.com) — ⏳ 待 Xianglin 确认后执行
+## Prod-1 (id.nicematrix.com) — ✅ 2026-07-11 19:42–19:56 MDT (Xianglin GO)
 
-计划步骤（无 DB alteration，纯镜像替换）：
-1. prod-1 上 retag 当前镜像为回滚点 `pre-avatar-fix-<TS>`。
-2. `docker save | gzip` → scp → **md5 双端核验** → `docker load`（跨境传输防截断）。
-3. `docker compose up -d --force-recreate logto` → 确认 healthy。
-4. 冒烟（同 staging 套路，真实 user token）：avatar POST/DELETE 200、响应无敏感字段、token-exchange 三 token、5 个页面/端点 200、日志零错误。
-5. 回填本段为 ✅ + 实测证据。
+- 回滚 tag（prod-1 本地，部署前先打）：`nicematrix-logto:pre-avatar-fix-20260711_1942` = `30e9c4396809`（即修复前的 v1.41.0）
+- 传输：`docker save avatar-fix-20260711 | gzip`（328MB，gzip -t 完整性验证）→ scp → **md5 双端一致** `8d910bfa600684411a99b862c1ebda63` → `docker load`（prod-1 上 image id `c7f669934021`，与本机构建同源）→ retag `latest`
+- 镜像内产物二次核验（prod-1 上一次性容器）：解构 ×2、第三参 `updatedUser` ×2、DELETE status `[200,400,401,500]` ✓
+- `docker compose --env-file /etc/nicematrix/id.env up -d --force-recreate --no-build logto` → healthy
+- **冒烟（在 prod-1 主机上执行，secrets 不离机；M2M `m-admin` → subject-token (user `ux4219rvs3g7` systemtest) → token-exchange client `71xn57jfgatye1oequ3ca`）：**
+  - `POST /api/my-account/avatar`（真实 PNG multipart）→ **200**，avatar = R2 URL，含 `hasSecurityVerificationMethod: true`，无敏感字段 ✓
+  - `DELETE /api/my-account/avatar` → **200**，avatar 清空，无敏感字段 ✓
+  - token-exchange `offline_access` → access + id + refresh 三 token **PASS**
+  - `/account` `/account/profile` `/account/security` `/oidc/.well-known/openid-configuration` `/console` 全 200
+  - 容器日志 15 分钟窗口无 error / ResponseBodyError / 500
+- 传输文件双端已清理。
 
-回滚：prod-1 本地 `docker tag pre-avatar-fix-<TS> → latest` + force-recreate，无数据影响。
+回滚（如需）：prod-1 `docker tag nicematrix-logto:pre-avatar-fix-20260711_1942 nicematrix-logto:latest` + force-recreate，无数据影响。
