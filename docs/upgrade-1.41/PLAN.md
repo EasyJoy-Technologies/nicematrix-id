@@ -189,3 +189,13 @@ The `LOGTO_VERSION` env (drives the admin "ID System Status" tile) and the MEMOR
   - DB: users.is_password_expired present; policies columns added; hideLogtoBranding still true (OSS allow works)
   - staging LOGTO_VERSION → 1.41.0, backend restarted, health OK
 - **NEXT: Stage 7 prod-1 — awaiting explicit GO** (browser-level Account Center visual check on staging recommended first)
+
+## 13. PROD DEPLOY LOG (2026-07-11 evening, GO by Xianglin)
+
+- prod-1 backup: image `pre-1.41-backup-20260711_1822` (=f2c80d9e6577), DB `/root/backups/logto_prod_pre_v1.41.0_20260711_1822.sql` (138M, pg_dumpall -U logto)
+- Image transfer: docker save|gzip|ssh|load; layer-digest md5 verified identical both ends (6f052d7e…)
+- Alterations: 9/9 succeeded via one-shot container on `nicematrix-id_default` w/ explicit DB_URL (same method as staging)
+- Switch: retag v1.41.0→latest, compose up -d --force-recreate; healthy in ~25s; zero errors in logs
+- Smoke (prod): discovery/jwks/console/account 200, sign-in 302 (normal), M2M OK, verification-records/assert 422, **token-exchange returns access+id+refresh** (app-access-control no-op confirmed on prod), backend health 200 v1.2.449, admin-web 200
+- LOGTO_VERSION=1.41.0 flipped + backend restarted on: staging (this host), prod-1, prod-3 (dashboard env only, no Logto there). prod-3 /v1/meta OK post-restart, both units active.
+- **UPGRADE COMPLETE. Rollback assets retained** (image tags + same-session dumps).
