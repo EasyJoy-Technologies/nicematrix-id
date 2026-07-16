@@ -104,6 +104,18 @@ NiceMatrix extension implementing the 15-day grace period flow. See
 contract; the actual cron that performs the delete lives in
 nicematrix-backend.
 
+### Profile-fields validation (`libraries/custom-profile-fields/index.ts`)
+
+Override of `validateProfileFieldsList` so the two column-backed built-ins
+(`name`, `avatar`) are exempt from the `custom_profile_fields` catalog existence
+check. Upstream 1.41 seeds admin `account_centers.profile_fields =
+[{name},{avatar}]` but validates every name against the catalog, where
+`name`/`avatar` never exist as rows — so saving **Sign-in experience → Sign-in &
+account** in the console always 400'd with `entity_not_exists_with_names: name,
+avatar`. Only these two keys are exempt (derived from `nameAndAvatarGuard`); all
+other built-in keys (birthdate/gender/nickname/address/...) remain validated
+because they are real catalog rows here. Details: `docs/patches.md` item 7.
+
 ## Client-side overrides
 
 All under `overrides/packages/account/src/`:

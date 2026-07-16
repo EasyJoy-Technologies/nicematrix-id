@@ -56,6 +56,25 @@ No dist bundle patching is used in the active workflow.
      - Cloud: keep BYUI quota guard
      - OSS: allow saving `hideLogtoBranding` without `request.invalid_input`
 
+7. Exempt column-backed built-in profile fields (`name`, `avatar`) from the
+   account-center / sign-up `profileFields` catalog existence check:
+   - Override file:
+     `logto-custom/overrides/packages/core/src/libraries/custom-profile-fields/index.ts`
+   - Problem (1.41): alteration `1.41.0-...-set-admin-account-center-profile-fields`
+     seeds admin `account_centers.profile_fields = [{name},{avatar}]`, but
+     `validateProfileFieldsList` checks every referenced name against the
+     `custom_profile_fields` catalog with no built-in exemption. `name`/`avatar` are
+     backed by dedicated `users` columns, never catalog rows -> every save of
+     **Sign-in experience -> Sign-in & account** failed with
+     `custom_profile_fields.entity_not_exists_with_names: name, avatar`.
+   - Fix: exempt ONLY `name`+`avatar` (derived from `nameAndAvatarGuard.keyof()`) from
+     the missing-name check; keep the duplicate-name check on the full list; skip the
+     catalog query when nothing remains to verify (`... in ()` is invalid Postgres SQL).
+   - Scope guard: other built-in keys (birthdate/gender/nickname/address/...) are
+     legitimate catalog rows here, so they stay validated (dangling-ref detection intact).
+   - Upgrade note: on the next upstream bump, re-copy this upstream file and re-apply only
+     these ~3 diff hunks; verify `nameAndAvatarGuard` still exports `name`+`avatar`.
+
 ## How to add customization
 
 1. Locate target source file in `logto-upstream/`.
