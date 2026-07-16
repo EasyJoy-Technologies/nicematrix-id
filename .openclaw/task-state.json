@@ -1,23 +1,18 @@
 {
-    "task": "Region-aware social-button visibility on hosted login page (hide_social / show_social)",
-    "updated": "2026-06-17",
-    "logto": {
-        "repo": "nicematrix-id",
-        "status": "DONE — built, deployed staging + prod-1, e2e verified both",
-        "summary": "New URL params hide_social (blacklist) + show_social (whitelist) let a calling App (e.g. cn build) show/hide standard social providers (google/facebook/...) on the Logto hosted login page. Filter applied at single source of truth parseSignInExperienceResponse (sign-in-experience.ts) so the 'or' divider + empty-state branches stay consistent (no orphan divider). Structural guardrail: only socialConnectors array is touched, email/password never hideable. Google hidden => One Tap suppressed. native-caps unit tests 97/97 green.",
-        "files": [
-            "packages/schemas/src/consts/oidc.ts",
-            "packages/core/src/oidc/utils.ts",
-            "packages/experience/src/utils/native-caps.ts",
-            "packages/experience/src/utils/sign-in-experience.ts (new override)"
-        ],
-        "deploy": {
-            "staging": "id-staging.nicematrix.com — image a09568b35463, container healthy, 7-case real-OIDC e2e PASS",
-            "prod1": "id.nicematrix.com (46.224.6.74) — image config 437265c852fc loaded via docker save->scp (md5 4fdbac85e17deb0e0e85f4e692b14996 matched), force-recreate, healthy, 7-case real-OIDC e2e PASS, 0 log errors",
-            "rollback": "prod-1 backup tags nicematrix-logto:prod-backup-20260617_2332 + :pre-social-visibility-rollback = 90dc641ca8a4"
-        },
-        "caveat": "Empty-value params (show_social= / hide_social=) pass through as 'no rule' over OIDC because appendExtraParam skips falsy values (upstream-consistent). Each param must carry >=1 target. Documented in docs/custom-extra-params.md.",
-        "client_usage": "iOS/Android/Flutter add hide_social / show_social query to the /oidc/auth authorization request (extra params). Native SDK: pass via extraParams.",
-        "next": "none — task complete"
-    }
+  "task": "Fix Sign-in & account save error (entity_not_exists_with_names: name, avatar) in Logto 1.41 + verify username-dot override still effective",
+  "updated": "2026-07-15",
+  "issue2_username_dot": {
+    "status": "VERIFIED GREEN — no change needed",
+    "finding": "1.41 added username-policy.ts; dot only passes via validateUsernameHardFloor()->usernameRegEx. Deployed image regex.js = /^[A-Z_a-z](?:[\\w.]*\\w)?$/ and username-policy.js imports it. Dots still work."
+  },
+  "issue1_profilefields_fix": {
+    "status": "DONE — committed (8e18cd6), built (image 955ff9c7fab5/238b2fd04473), staging+prod-1 deployed, 6/6 smoke green both, DB restored, logs clean",
+    "root_cause": "1.41 alteration seeds admin account_centers.profile_fields=[{name},{avatar}]; validateProfileFieldsList validates all names vs custom_profile_fields catalog with no built-in exemption; name/avatar are column-backed, never rows -> save always 400.",
+    "override_file": "logto-custom/overrides/packages/core/src/libraries/custom-profile-fields/index.ts",
+    "fix": "Exempt only name+avatar (nameAndAvatarGuard.keyof()) from missing-name check; keep duplicate check on full list; skip catalog query when namesToVerify empty (avoid `in ()`). Other built-ins (birthdate/gender/nickname/address) stay validated (real catalog rows here).",
+    "docs": "patches.md item 7; account-center-profile.md server-side overrides section",
+    "no_db_migration": true
+  },
+  "deploy_plan": "Build image (deploy/docker-compose.yml) -> tag staging-backup + feature tag -> staging up -d -> smoke (save Sign-in&account 200 via mgmt API; unknown custom name still 400; duplicate still 400; OIDC/console/account 200; log clean) -> save image tar -> scp prod-1 (md5 verify) -> tag prod-backup -> load+recreate -> same smoke -> changelog + MEMORY.md.",
+  "rollback": "staging: tag staging-backup->latest + up -d. prod-1: tag prod-backup-<date>->latest + up -d. No DB change."
 }
