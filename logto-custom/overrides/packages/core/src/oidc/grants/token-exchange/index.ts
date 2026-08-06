@@ -201,27 +201,32 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
   // routes arrays through `resourceIndicators.defaultResource()`, and Logto's
   // implementation IGNORES the passed candidates and returns the tenant-wide
   // default resource — which would silently mint a token for the WRONG audience.
-  // So we must never hand it an array: pass a shallow proxy pinning
-  // `params.resource` to the primary value. Single-resource requests are passed
-  // through untouched, keeping the existing code path byte-identical.
+  // So we must never hand it an array: give it a view of `ctx` whose
+  // `oidc.params.resource` is pinned to the primary value.
+  //
+  // This is done by PROTOTYPE SHADOWING, not a Proxy. `ctx.oidc` is a
+  // non-configurable data property, so a Proxy `get` trap is required by the JS
+  // spec to return that exact object; returning a wrapper throws
+  // "TypeError: 'get' on proxy: property 'oidc' is a read-only and
+  // non-configurable data property" (caught on id-staging, 2026-08-06).
+  // `Object.create` sidesteps the invariant entirely: the derived object keeps
+  // the full prototype chain (so every other ctx / oidc member, including
+  // getters and methods, resolves exactly as before) and only shadows `params`.
+  // Single-resource requests pass the real `ctx` through untouched, keeping the
+  // pre-existing code path byte-identical.
   const resolveCtx =
     requestedResources.length > 1
-      ? new Proxy(ctx, {
-          get(target, property, receiver) {
-            if (property !== 'oidc') {
-              return Reflect.get(target, property, receiver);
-            }
-            const oidc = target.oidc;
-            return new Proxy(oidc, {
-              get(oidcTarget, oidcProperty, oidcReceiver) {
-                if (oidcProperty !== 'params') {
-                  return Reflect.get(oidcTarget, oidcProperty, oidcReceiver);
-                }
-                return { ...oidcTarget.params, resource: primaryResource };
+      ? (Object.create(ctx, {
+          oidc: {
+            value: Object.create(ctx.oidc, {
+              params: {
+                value: { ...params, resource: primaryResource },
+                enumerable: true,
               },
-            });
+            }) as typeof ctx.oidc,
+            enumerable: true,
           },
-        })
+        }) as typeof ctx)
       : ctx;
 
   const resource = await resolveResource(

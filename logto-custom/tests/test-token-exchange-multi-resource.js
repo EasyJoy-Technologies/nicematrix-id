@@ -33,6 +33,12 @@
  *   5-8  multi resource   -> array persisted, primary drives the access token
  *   9-10 resolveResource never receives an array (would silently mint the WRONG
  *        audience via Logto's defaultResource(), which ignores its candidates)
+ *   9a-9c the ctx-view mechanism itself: `ctx.oidc` is a non-configurable data
+ *        property, so a Proxy `get` trap MUST return that exact object or the JS
+ *        engine throws. The first implementation used a Proxy and blew up on
+ *        id-staging with "TypeError: 'get' on proxy: property 'oidc' is a
+ *        read-only and non-configurable data property". Prototype shadowing via
+ *        Object.create has no such invariant. These cases pin that down.
  *   11   secondary registered on the grant (else refresh yields empty scope)
  *   12   unknown secondary fails fast at login, not on a later refresh
  *   13   BaseToken#resourceIndicators semantics for both shapes
@@ -161,10 +167,86 @@ check('multi -> resolveResource ctx pins params.resource to the primary', () => 
   assert.equal(seenByResolveResource, BIZ);
 });
 
-check('single -> ctx passed through untouched (no proxy)', () => {
+check('single -> ctx passed through untouched (no derived view)', () => {
   const requested = normalizeResources(BIZ);
-  const usesProxy = requested.length > 1;
-  assert.equal(usesProxy, false);
+  const usesDerivedView = requested.length > 1;
+  assert.equal(usesDerivedView, false);
+});
+
+// --- the ctx-view mechanism (regression fence for the id-staging failure) ---
+
+/** Builds a ctx shaped like oidc-provider's: `oidc` is NON-configurable. */
+function makeCtx(resource) {
+  const oidc = {
+    params: { resource, scope: 'openid profile offline_access' },
+    client: { clientId: 'app-1' },
+    get entities() {
+      return { Client: 'x' };
+    },
+    entity() {
+      return 'method-ok';
+    },
+  };
+  const ctx = {};
+  Object.defineProperty(ctx, 'oidc', {
+    value: oidc,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
+  return ctx;
+}
+
+/** The shipped implementation: prototype shadowing, no Proxy. */
+function makeResolveCtx(ctx, primary) {
+  return Object.create(ctx, {
+    oidc: {
+      value: Object.create(ctx.oidc, {
+        params: { value: { ...ctx.oidc.params, resource: primary }, enumerable: true },
+      }),
+      enumerable: true,
+    },
+  });
+}
+
+check('a Proxy ctx wrapper violates the JS invariant (why we do NOT use one)', () => {
+  const ctx = makeCtx([BIZ, STORE]);
+  const proxied = new Proxy(ctx, {
+    get(target, prop, receiver) {
+      if (prop !== 'oidc') {
+        return Reflect.get(target, prop, receiver);
+      }
+      return new Proxy(target.oidc, {
+        get(t, p, r) {
+          return p === 'params' ? { ...t.params, resource: BIZ } : Reflect.get(t, p, r);
+        },
+      });
+    },
+  });
+  assert.throws(() => proxied.oidc.params.resource, {
+    name: 'TypeError',
+    message: /non-configurable/,
+  });
+});
+
+check('derived ctx pins resource to the primary and is never an array', () => {
+  const ctx = makeCtx([BIZ, STORE]);
+  const derived = makeResolveCtx(ctx, BIZ);
+  assert.equal(derived.oidc.params.resource, BIZ);
+  assert.equal(Array.isArray(derived.oidc.params.resource), false);
+});
+
+check('derived ctx preserves other params/members and leaves ctx unmutated', () => {
+  const ctx = makeCtx([BIZ, STORE]);
+  const derived = makeResolveCtx(ctx, BIZ);
+  // sibling params survive
+  assert.equal(derived.oidc.params.scope, 'openid profile offline_access');
+  // plain members, getters and methods all still resolve through the chain
+  assert.equal(derived.oidc.client.clientId, 'app-1');
+  assert.deepEqual(derived.oidc.entities, { Client: 'x' });
+  assert.equal(derived.oidc.entity(), 'method-ok');
+  // the caller's ctx must not be modified - the real request still carries both
+  assert.deepEqual(ctx.oidc.params.resource, [BIZ, STORE]);
 });
 
 // === 11-12. grant registration ==============================================
