@@ -1,5 +1,11 @@
 # Refresh-Token Grant：resource 校验前移 + 受控扩集（方案 A）
 
+> ⚠️ **SUPERSEDED（2026-08-06）**：本方案 A（refresh-token S1 校验前移 + S2 受控扩集）
+> 经复审**不实施**。改采**方案 B**（store 后端接受本区业务 audience，无需改 Logto）。
+> 现行权威文档：nicematrix-backend `docs/integration/store-cross-audience-b.md`。
+> 本文件保留作设计备选：仅当未来要把 store 建成独立 audience 资源服务器时回头考虑。
+
+
 > 目标：为自有云同步（store）上线做准备。存量已登录用户在**不重新登录、零感知**的前提下，
 > 会话自动升级为「业务 + store」双 resource。同时根治「`invalid_target` 烧毁 refresh token →
 > 全 grant 被 revoke → 全设备掉登录」的事故类别（2026-08-06 事故，根因分析见
