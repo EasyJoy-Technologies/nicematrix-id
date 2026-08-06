@@ -171,17 +171,73 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
 
   /** The scopes requested by the client. If not provided, use the scopes from the refresh token. */
   const scope = requestParamScopes;
+
+  // [NiceMatrix override] === BEGIN multi-resource normalization ===
+  // RFC 8707 allows the `resource` parameter to be repeated, and
+  // `registerGrants()` already declares `resource` as a duplicable parameter for
+  // this grant, so `params.resource` may legitimately arrive as an array.
+  //
+  // Upstream assumed a single value and stored that single value on the refresh
+  // token. A refresh_token minted that way carries exactly ONE resource
+  // indicator, so a later `grant_type=refresh_token&resource=<other>` fails with
+  // `InvalidTarget` (oidc-provider `resolve_resource.js`:
+  // `if (resource && !model.resourceIndicators.has(resource)) throw`).
+  // That is the CN self-hosted-cloud case: business API + store API are two
+  // different resource indicators on one login session.
+  //
+  // Normalize to an array here. `requestedResources[0]` stays the ACCESS token's
+  // single audience (a JWT `aud` must be one value); the remaining entries are
+  // registered on the grant and persisted on the refresh token so subsequent
+  // refreshes can target any of them — mirroring what the upstream
+  // authorization_code grant already does when `authorize` declares multiple
+  // resources (verified in production: those refresh tokens store an array).
+  const requestedResources: string[] = (
+    Array.isArray(params.resource) ? params.resource : [params.resource]
+  ).filter((value): value is string => typeof value === 'string' && value.length > 0);
+  const primaryResource: string | undefined = requestedResources[0];
+
+  // `resolveResource` reads `ctx.oidc.params.resource` directly and throws
+  // `InvalidTarget` when it resolves to an array. Critically, before throwing it
+  // routes arrays through `resourceIndicators.defaultResource()`, and Logto's
+  // implementation IGNORES the passed candidates and returns the tenant-wide
+  // default resource — which would silently mint a token for the WRONG audience.
+  // So we must never hand it an array: pass a shallow proxy pinning
+  // `params.resource` to the primary value. Single-resource requests are passed
+  // through untouched, keeping the existing code path byte-identical.
+  const resolveCtx =
+    requestedResources.length > 1
+      ? new Proxy(ctx, {
+          get(target, property, receiver) {
+            if (property !== 'oidc') {
+              return Reflect.get(target, property, receiver);
+            }
+            const oidc = target.oidc;
+            return new Proxy(oidc, {
+              get(oidcTarget, oidcProperty, oidcReceiver) {
+                if (oidcProperty !== 'params') {
+                  return Reflect.get(oidcTarget, oidcProperty, oidcReceiver);
+                }
+                return { ...oidcTarget.params, resource: primaryResource };
+              },
+            });
+          },
+        })
+      : ctx;
+
   const resource = await resolveResource(
-    ctx,
+    resolveCtx,
     {
       // We don't restrict the resource indicators to the requested resource,
       // because the subject token does not have a resource indicator.
       // Use the params.resource to bypass the resource indicator check.
-      resourceIndicators: new Set([params.resource]),
+      // [NiceMatrix override] seed with every requested indicator (was a single
+      // value) so the primary passes the membership check unchanged.
+      resourceIndicators: new Set(requestedResources),
     },
     { userinfo, resourceIndicators },
     scope
   );
+  // [NiceMatrix override] === END multi-resource normalization ===
 
   if (organizationId && !resource) {
     /* === RFC 0001 === */
@@ -224,6 +280,35 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
       .filter(Set.prototype.has.bind(accessToken.resourceServer.scopes))
       .join(' ');
     grant.addResourceScope(resource, accessToken.scope);
+
+    // [NiceMatrix override] === BEGIN secondary resource registration ===
+    // The access token above is bound to `resource` (the primary) only. Register
+    // the remaining requested indicators on the SAME grant so that a later
+    // `grant_type=refresh_token&resource=<secondary>` can resolve a scope for
+    // them — `refresh_token` computes its access-token scope via
+    // `grant.getResourceScopeFiltered(resource, ...)`, which returns '' for any
+    // resource the grant never recorded.
+    //
+    // `getResourceServerInfo` throws `InvalidTarget` for an indicator that is not
+    // a registered API resource, so an unknown secondary fails fast HERE (at
+    // login) instead of silently minting a refresh token that cannot serve it.
+    for (const secondary of requestedResources) {
+      if (secondary === resource) {
+        continue;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const secondaryInfo = await resourceIndicators.getResourceServerInfo(ctx, secondary, client);
+      const secondaryScopes = new Set(
+        String(secondaryInfo.scope ?? '')
+          .split(' ')
+          .filter(Boolean)
+      );
+      grant.addResourceScope(
+        secondary,
+        [...scope].filter((name) => secondaryScopes.has(name)).join(' ')
+      );
+    }
+    // [NiceMatrix override] === END secondary resource registration ===
   } else {
     accessToken.claims = ctx.oidc.claims;
     // Filter scopes from `oidcScopes`,
@@ -293,7 +378,15 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
       scope: [...scope].join(' '),
       // Preserve resource audience binding across rotations, mirroring upstream
       // authorization_code grant (`resource: code.resource`).
-      resource: params.resource,
+      // [NiceMatrix override] Persist ALL requested indicators when more than one
+      // was asked for. oidc-provider's `BaseToken#resourceIndicators` getter is
+      // `new Set(Array.isArray(this.resource) ? this.resource : [this.resource])`,
+      // so an array makes every listed resource a valid refresh target while a
+      // single value keeps the exact pre-existing shape (and therefore the exact
+      // pre-existing behaviour) for every client that sends one resource.
+      // Rotation carries this through untouched: the upstream refresh_token grant
+      // copies `resource: refreshToken.resource` verbatim into the rotated token.
+      resource: requestedResources.length > 1 ? requestedResources : primaryResource,
       // Carry over claims (may be undefined for resource / org branches) so the
       // refresh grant's id_token path has the same claim shape as ours.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
