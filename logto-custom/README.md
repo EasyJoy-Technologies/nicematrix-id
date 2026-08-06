@@ -109,7 +109,8 @@ Do not patch built dist bundles. Customize at source level only.
 **Patch** (same file, 3 further `[NiceMatrix override]` blocks): the grant is already registered with `resource` as a **duplicable** parameter (`registerGrants()` → `getParameterConfig`), so `params.resource` may arrive as an array; only the handler ignored it.
 
 - normalize `params.resource` to `requestedResources: string[]` (drops empty / non-string); `requestedResources[0]` is the primary and remains the access token's single `aud` (a JWT audience must be one value).
-- pass `resolveResource` a **shallow proxy** pinning `params.resource` to the primary. It must never receive an array: before throwing on arrays it routes them through `resourceIndicators.defaultResource()`, and Logto's implementation **ignores the candidates** and returns the tenant-wide default — silently minting a token for the WRONG audience. Single-resource requests get the untouched `ctx` (no proxy).
+- pass `resolveResource` a **derived `ctx`** (`Object.create` prototype shadowing) pinning `params.resource` to the primary. It must never receive an array: before throwing on arrays it routes them through `resourceIndicators.defaultResource()`, and Logto's implementation **ignores the candidates** and returns the tenant-wide default — silently minting a token for the WRONG audience. Single-resource requests get the untouched `ctx`.
+  - ⚠️ **Do not use a `Proxy` here.** `ctx.oidc` is a non-configurable, non-writable data property, so the ES proxy invariant forces a `get` trap to return that exact object; returning a wrapper throws `TypeError: 'get' on proxy: property 'oidc' is a read-only and non-configurable data property`. The first implementation did exactly that and 500'd on the id-staging smoke (caught pre-production, 2026-08-06). `Object.create` has no such invariant: it keeps the whole prototype chain (accessors + methods resolve normally), shadows only `params`, and leaves the caller's real `ctx` unmutated. A unit case asserts the Proxy form throws, so this cannot regress silently.
 - register every secondary indicator on the same grant via `getResourceServerInfo` + `grant.addResourceScope`, because `refresh_token` derives its scope from `grant.getResourceScopeFiltered(resource, …)`, which returns `''` for a resource the grant never recorded. An unregistered indicator makes `getResourceServerInfo` throw `InvalidTarget` **at login**, rather than minting an RT that quietly cannot serve it.
 - persist `resource: requestedResources.length > 1 ? requestedResources : primaryResource` on the RT.
 
@@ -117,7 +118,20 @@ Do not patch built dist bundles. Customize at source level only.
 
 **Client contract**: send the `resource` parameter twice on the token-exchange call. Independently, `invalid_target` must **never** trigger `RevokeToken` — it is a configuration error, not an expired session; treat it as "store unavailable" and keep the session. That reflex caused the re-login loop.
 
-**Tests**: `logto-custom/tests/test-token-exchange-multi-resource.js` (13 cases; 4 are single-resource regression guards, plus the defaultResource trap and the fail-fast case).
+**Tests**: `logto-custom/tests/test-token-exchange-multi-resource.js` (16 cases; 4 single-resource regression guards, 3 for the derived-ctx mechanism, plus the defaultResource trap and the fail-fast case).
+
+**Verification** (2026-08-06, id-staging, image `:token-exchange-multi-resource-20260806` sha `d12c68dd3224`; throwaway app + user, both deleted afterwards):
+
+| # | case | result |
+|---|---|---|
+| A | dual-resource token-exchange | 200, `aud` = primary, `id_token` + `refresh_token` present |
+| B | refresh for the **secondary** resource | 200, `aud` = secondary — **the production bug, fixed** |
+| C | single-resource token-exchange | 200, RT stored as bare **string** (regression) |
+| D | single-resource refresh | 200, `aud` correct (regression) |
+| E | single-resource RT → a different resource | `invalid_target`, still correctly rejected |
+| F | unknown secondary at login | `invalid_target`, fail-fast as designed |
+
+RT rows: multi = jsonb **array** (both indicators, preserved across rotation), single = jsonb **string**. Zero `server_error` in the container log; container healthy. Rollback tag: `nicematrix-logto:pre-multi-resource-20260806` (sha `955ff9c7fab5`).
 
 ### `packages/schemas/src/consts/oidc.ts` + `packages/core/src/oidc/utils.ts` (2026-05-27)
 
