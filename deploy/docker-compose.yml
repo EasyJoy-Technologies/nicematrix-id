@@ -52,7 +52,7 @@ services:
       # previously stored tokens permanently undecryptable. Value lives in id.env.
       SECRET_VAULT_KEK: ${SECRET_VAULT_KEK}
     ports:
-      - "3001:${LOGTO_PORT}"
+      - "127.0.0.1:3001:${LOGTO_PORT}"
 
 volumes:
   pg_data:

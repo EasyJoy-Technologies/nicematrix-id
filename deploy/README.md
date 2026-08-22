@@ -12,7 +12,7 @@
 - `docker-compose.yml` — 运行时 stack（postgres + logto）
 - `.env.example` — 环境变量模板，复制为 `.env` 后填写
 - `nginx.id.nicematrix.conf.example` — Nginx 反向代理示例配置
-- `deploy.sh` — 一键构建 + 启动 + DB alteration 脚本
+- `deploy.sh` — 仅做已构建镜像的安全切换、健康检查和自动回滚；绝不构建、绝不执行 DB alteration
 
 ## 快速参考
 
@@ -20,14 +20,14 @@
 # 构建镜像（在项目根目录执行）
 docker build -t nicematrix-logto:latest . -f logto-custom/Dockerfile
 
-# 启动 stack（在 deploy/ 目录执行）
-# 建议固定 compose project 名，避免网络/容器名漂移
-docker compose -p nicematrix-id up -d
+# staging 切换已构建且带描述性 tag 的候选镜像
+./deploy/deploy.sh --target staging \
+  --candidate nicematrix-logto:release-<git-sha>-<YYYYMMDD-HHMMSS> --apply
 
 # 查看日志
 docker logs nicematrix-logto --tail 50 -f
 
-# DB alteration（升级 Logto 版本后执行）
+# DB alteration 是独立高风险步骤，先备份、审阅后单独执行
 docker compose -p nicematrix-id run --rm --entrypoint="" logto \
   node /etc/logto/packages/cli/bin/logto.js database alteration deploy next
 ```

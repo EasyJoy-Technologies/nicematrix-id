@@ -27,7 +27,7 @@
 ## 1. 核心原则（Hard Rules）
 
 1. **Staging 先部署并充分验证，才能推生产**。禁止直接 rebuild 生产或先部署生产。
-2. **生产镜像必须和 staging 镜像完全一致**（同一个 image ID）。生产不重新 build，只传 staging 已验证的镜像。
+2. **生产镜像必须和 staging 镜像具有相同 RootFS Layers**。生产不重新 build，只传 staging 已验证的镜像；`docker save/load` 后 image ID 可能变化，不能用 image ID 判断漂移。
 3. **每次生产部署前，必须 tag 当前生产镜像为 backup**。tag 格式：`nicematrix-logto:prod-backup-<YYYYMMDD>`。
 4. **DB migration 必须在 staging 先跑，生产跑之前审阅 diff**。SQL 必须幂等（`CREATE TABLE IF NOT EXISTS` / `ALTER ... IF NOT EXISTS`）。
 5. **部署完成后必须执行健康检查 + 手动功能验证**。健康检查过不代表业务功能好。
@@ -40,7 +40,7 @@
 1. 在 dev repo 改代码：`/root/projects/nicematrix-id/logto-custom/overrides/...`
 2. Override 路径必须严格对应 upstream：`overrides/packages/<pkg>/src/<path>` 对应 `logto-upstream/packages/<pkg>/src/<path>`。
 3. 所有改动限制在 `overrides/` 和 `logto-custom/` 内，不允许直接改 `logto-upstream/`。
-4. 改完 commit（但是：本项目不是 git repo，目前用本地 diff 追踪。TODO：升级为 git repo）。
+4. 改完提交到 Git；生产候选镜像必须能追溯到明确 commit 与描述性 tag。
 
 ---
 
@@ -63,25 +63,14 @@ docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml bu
   - `packages/console build: ✓ built in ...` 无 `error TS`
   - 最终 `Image nicematrix-logto:latest Built`
 
-### 3.2 Tag + Recreate
+### 3.2 Tag + Guarded switch
 
 ```bash
-# Tag backup so we can roll staging back too if needed
-docker tag nicematrix-logto:latest nicematrix-logto:staging-backup-$(date +%Y%m%d-%H%M)
-
-# Tag with a human-readable feature name (for long-term traceability)
-docker tag nicematrix-logto:latest nicematrix-logto:<feature-name>-$(date +%Y%m%d)
-
-# Recreate container (brief 10–15s downtime)
-docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml up -d logto
-
-# Wait for healthy
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  sleep 5
-  STATUS=$(docker ps --filter name=nicematrix-logto --format "{{.Status}}")
-  echo "[$i] $STATUS"
-  echo "$STATUS" | grep -q healthy && break
-done
+GIT_SHA=$(git rev-parse HEAD)
+UTC_TAG=$(date -u +%Y%m%d-%H%M%S)
+docker tag nicematrix-logto:latest nicematrix-logto:release-${GIT_SHA}-${UTC_TAG}
+./deploy/deploy.sh --target staging \
+  --candidate nicematrix-logto:release-${GIT_SHA}-${UTC_TAG} --apply
 ```
 
 ### 3.3 DB Migration（如有）
@@ -130,31 +119,18 @@ scp -i /root/keys/nicematrix-id-prod_20260419_ed25519 \
 ssh -i /root/keys/nicematrix-id-prod_20260419_ed25519 root@46.224.6.74 << 'EOF'
 set -e
 
-# ✅ 1. Tag current prod image as backup
-TODAY=$(date +%Y%m%d)
-docker tag nicematrix-logto:latest nicematrix-logto:prod-backup-${TODAY}
-echo "Backup tagged: prod-backup-${TODAY}"
-docker images nicematrix-logto --format "  {{.Tag}}\t{{.ID}}" | head -5
-
-# ✅ 2. Load new image
+# ✅ 1. Load new image；运行中的旧容器 image ID 不受 tag 覆盖影响
 docker load -i /tmp/nicematrix-logto.tar
 
-# ✅ 3. Feature tag
-docker tag nicematrix-logto:latest nicematrix-logto:<feature-name>-${TODAY}
+# ✅ 2. 生成不可变 release tag
+UTC_TAG=$(date -u +%Y%m%d-%H%M%S)
+docker tag nicematrix-logto:latest nicematrix-logto:release-<git-sha>-${UTC_TAG}
 
-# ✅ 4. Recreate container
+# ✅ 3. 安全脚本从运行中容器 image ID 建 rollback tag，再切换候选镜像
 cd /var/www/nicematrix-id
-docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml up -d logto
+./deploy/deploy.sh --target prod-1 --candidate nicematrix-logto:release-<git-sha>-${UTC_TAG} --apply
 
-# ✅ 5. Wait for healthy
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  sleep 5
-  STATUS=$(docker ps --filter name=nicematrix-logto --format "{{.Status}}")
-  echo "[$i] $STATUS"
-  echo "$STATUS" | grep -q healthy && break
-done
-
-# ✅ 6. Cleanup
+# ✅ 4. Cleanup
 rm /tmp/nicematrix-logto.tar
 EOF
 ```
@@ -170,7 +146,7 @@ scp -i /root/keys/nicematrix-id-prod_20260419_ed25519 \
 
 ssh -i /root/keys/nicematrix-id-prod_20260419_ed25519 root@46.224.6.74 \
   'docker cp /tmp/<migration>.sql nicematrix-id-postgres:/tmp/ && \
-   docker exec nicematrix-id-postgres psql -U logto -d logto -f /tmp/<migration>.sql'
+   docker exec nicematrix-id-postgres psql -v ON_ERROR_STOP=1 -U logto -d logto -f /tmp/<migration>.sql'
 ```
 
 ### 4.4 生产验证清单（必做）
@@ -199,17 +175,16 @@ rm /tmp/nicematrix-logto.tar  # staging
 
 ```bash
 ssh -i /root/keys/nicematrix-id-prod_20260419_ed25519 root@46.224.6.74 \
-  'docker tag nicematrix-logto:prod-backup-<YYYYMMDD> nicematrix-logto:latest && \
-   cd /var/www/nicematrix-id && \
-   docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml up -d logto'
+  'cd /var/www/nicematrix-id && ./deploy/deploy.sh --target prod-1 \
+   --candidate nicematrix-logto:rollback-prod-1-<UTC> --apply'
 ```
 
 ### 5.2 Staging 回滚
 
 ```bash
 cd /root/projects/nicematrix-id
-docker tag nicematrix-logto:staging-backup-<timestamp> nicematrix-logto:latest
-docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml up -d logto
+./deploy/deploy.sh --target staging \
+  --candidate nicematrix-logto:rollback-staging-<UTC> --apply
 ```
 
 ### 5.3 DB Migration 回滚
@@ -247,16 +222,14 @@ docker compose --env-file /etc/nicematrix/id.env -f deploy/docker-compose.yml up
 | 前缀 | 用途 | 保留期 |
 |---|---|---|
 | `nicematrix-logto:latest` | 当前活跃 | 永远 |
-| `nicematrix-logto:prod-backup-<YYYYMMDD>` | 生产回滚 | 保留最近 3 个 |
-| `nicematrix-logto:staging-backup-<YYYYMMDD-HHMM>` | Staging 回滚 | 保留最近 5 个 |
-| `nicematrix-logto:<feature-name>-<YYYYMMDD>` | 功能版本追溯 | 永远 |
+| `nicematrix-logto:rollback-<target>-<UTC>` | 自动回滚锚 | 每环境最近 3 个 |
+| `nicematrix-logto:release-<commit>-<UTC>` | 可追溯候选/历史版本 | 最近 3 个 |
 
 清理：
 ```bash
 # List all nicematrix-logto tags with age
 docker images nicematrix-logto --format "{{.Tag}}\t{{.CreatedAt}}" | sort
-# Remove old backups
-docker rmi nicematrix-logto:prod-backup-<OLD_DATE>
+# deploy.sh 在验证成功后自动清理旧 rollback/release tag；失败回滚时不清理
 ```
 
 ---
