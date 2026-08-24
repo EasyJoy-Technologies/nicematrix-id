@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS user_deletion_requests (
   cancelled_at        timestamptz,
   executed_at         timestamptz,
   last_error          text,
+  scheduled_email_sent_at timestamptz,
+    -- Backend receipt-mail idempotency marker; schema-owned here, never at runtime.
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT user_deletion_requests__status_check

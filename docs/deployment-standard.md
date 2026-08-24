@@ -81,6 +81,13 @@ docker cp /root/projects/nicematrix-id/sql/<migration>.sql nicematrix-id-postgre
 docker exec nicematrix-id-postgres psql -U logto -d logto -f /tmp/<migration>.sql
 ```
 
+Backend 访问 Logto DB 时必须使用独立的 `nicematrix_backend_maintenance`
+最小权限角色，不得复用 Logto owner。该角色的 SQL 只声明权限，密码由运维单独生成并
+写入 Backend 的 mode `600` env。轮换密码时须先用候选连接串执行只读 `SELECT 1`，
+再原子替换 `LOGTO_DB_URL` 并仅重启 Backend；至少观察两个后台扫描周期。Logto owner
+密码轮换与该角色相互独立，轮换后仍须分别验证 Logto 健康检查和 Backend maintenance
+连接，禁止只验证其中一方。
+
 ### 3.4 Staging 验证清单（必做）
 
 | 检查项 | 命令 |
