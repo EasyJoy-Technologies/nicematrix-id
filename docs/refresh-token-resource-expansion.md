@@ -9,7 +9,7 @@
 > 目标：为自有云同步（store）上线做准备。存量已登录用户在**不重新登录、零感知**的前提下，
 > 会话自动升级为「业务 + store」双 resource。同时根治「`invalid_target` 烧毁 refresh token →
 > 全 grant 被 revoke → 全设备掉登录」的事故类别（2026-08-06 事故，根因分析见
-> nicematrix-system workspace `memory/changelog/logto-token-exchange-multi-resource-20260806.md`）。
+> nicematrix-system workspace `changelog/logto-token-exchange-multi-resource-20260806.md`）。
 >
 > 配套客户端文档：nicematrix-backend `docs/integration/client-multi-resource-fix.md`。
 > **部署顺序硬约束：本文档两项服务端改动必须先于客户端新包上线。**
