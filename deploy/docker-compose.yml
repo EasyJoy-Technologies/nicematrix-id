@@ -1,8 +1,17 @@
+# Docker's default json-file driver has NO size cap, and prod-1 has no daemon
+# default either, so every container here grew an unbounded log on the root
+# filesystem (logto alone reached 56 MB). The caps below are the only thing
+# bounding them. Changing `logging` requires a container RECREATE, not a restart.
 services:
   postgres:
     image: postgres:16-alpine
     container_name: nicematrix-id-postgres
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -28,6 +37,14 @@ services:
         dev_features_enabled: "true"
     image: nicematrix-logto:latest
     container_name: nicematrix-logto
+    # Larger budget than the databases: these are the identity service's own
+    # request/error logs and there is no log aggregation on this host, so they
+    # are the primary record when diagnosing a login failure.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     depends_on:
       postgres:
         condition: service_healthy
