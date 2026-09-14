@@ -1,21 +1,24 @@
 /**
- * [NiceMatrix override] vs upstream packages/account/src/App.tsx (v1.41.0).
+ * [NiceMatrix override] vs upstream packages/account/src/App.tsx (v1.43.0).
  *
  * Delta (search "[NiceMatrix]"):
  *   1. Root (/) renders our merged single-card Home page (Profile + Security
- *      sections in one card). Upstream 1.41 instead redirects root to the
- *      first nav item (/profile). We drop that redirect block — combined with
- *      delta 2 it would create an infinite redirect loop (/ -> /profile -> /).
+ *      sections in one card). Upstream instead redirects root to the first nav
+ *      item (/profile). We drop that redirect block — combined with delta 2 it
+ *      would create an infinite redirect loop (/ -> /profile -> /).
  *   2. /profile and /security are redirects to / so existing bookmarks/links
- *      keep working. The new upstream /sessions page is kept as-is (its
- *      content is NOT part of our merged Home page).
- *   3. useAuthRedirect: root is a normal authenticated page (upstream 1.41
- *      suppresses the auth redirect at root because its root immediately
- *      navigates away; ours doesn't, so root must trigger sign-in).
- * Layout and everything else are verbatim upstream 1.41.0.
+ *      keep working. The upstream /sessions page is kept as-is (its content is
+ *      NOT part of our merged Home page).
+ *   3. useAuthRedirect: root is a normal authenticated page (upstream suppresses
+ *      the auth redirect at root because its root immediately navigates away;
+ *      ours doesn't, so root must trigger sign-in).
+ * Layout and everything else are verbatim upstream 1.43.0 — including the new
+ * `UserScope.TrustedDevices` request scope (trusted devices stay disabled at the
+ * tenant level, so this is inert).
  */
 import LogtoSignature from '@experience/shared/components/LogtoSignature';
-import { LogtoProvider, ReservedScope, useLogto, UserScope } from '@logto/react';
+import { ReservedScope, UserScope } from '@logto/core-kit';
+import { LogtoProvider, useLogto } from '@logto/react';
 import { accountCenterApplicationId, SignInIdentifier } from '@logto/schemas';
 import classNames from 'classnames';
 import { useContext, useMemo } from 'react';
@@ -202,7 +205,7 @@ export const Main = () => {
         element={<SocialFlow mode="remove" />}
       />
       {/* [NiceMatrix] /profile and /security redirect to / (merged Home page);
-          the new upstream Sessions page is kept. */}
+          the upstream Sessions page is kept. */}
       {hasSessions && <Route path={sessionsRoute} element={<Sessions />} />}
       <Route path={securityRoute} element={<Navigate replace to="/" />} />
       <Route path={profileRoute} element={<Navigate replace to="/" />} />
@@ -295,6 +298,7 @@ const App = () => (
           UserScope.Identities,
           UserScope.CustomData,
           UserScope.Sessions,
+          UserScope.TrustedDevices,
         ],
       }}
     >

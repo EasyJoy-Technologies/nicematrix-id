@@ -9,8 +9,16 @@ export const reservationLink = 'https://cal.com/logto/30min';
 export const officialWebsiteLink = 'https://m.nicematrix.com';
 export const trustAndSecurityLink = `${officialWebsiteLink}/trust-and-security`;
 export const pricingLink = `${officialWebsiteLink}/pricing`;
+export const selfHostedPlansLink = `${officialWebsiteLink}/self-hosted-plans`;
 export const logtoCloudConsoleLink = 'https://cloud.logto.io';
 export const officialWebsiteContactPageLink = `${officialWebsiteLink}/contact`;
+export const buildOfficialWebsiteContactPageUrl = (source: string) => {
+  const url = new URL(officialWebsiteContactPageLink);
+
+  url.searchParams.set('src', source);
+
+  return url.toString();
+};
 export const entityPolicyLink = 'https://docs.logto.io/logto-cloud/system-limit';
 export const logtoOssFeatureSupportLink =
   'https://docs.logto.io/logto-oss#feature-supported-by-logto-oss';
@@ -45,6 +53,8 @@ export const integrateLogto = '/integrate-logto';
 export const applicationDataStructure = '/integrate-logto/application-data-structure';
 export const thirdPartyApp =
   '/integrate-logto/third-party-applications/oidc-oauth-third-party-applications';
+/** The page is not published yet, it ships together with the dynamic app (CIMD) feature. */
+export const dynamicApp = '/integrate-logto/third-party-applications/dynamic-apps';
 export const protectedApp = '/integrate-logto/protected-app';
 export const protectedAppLocalDev = '/integrate-logto/protected-app#local-development';
 export const protectOriginServer = '/integrate-logto/protected-app#protect-your-origin-server';
@@ -58,6 +68,7 @@ export const collectUserProfile = '/end-user-flows/collect-user-profile';
 export const connectors = '/connectors';
 export const socialConnectors = '/connectors/social-connectors';
 export const emailConnectors = '/connectors/email-connectors';
+export const builtInEmailService = '/connectors/email-connectors/built-in-email-service';
 export const enterpriseSso = '/connectors/enterprise-connectors';
 export const security = '/security';
 export const captcha = '/security/captcha';

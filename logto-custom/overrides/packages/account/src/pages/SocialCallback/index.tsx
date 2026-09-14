@@ -1,16 +1,23 @@
 /**
- * [NiceMatrix] Override of upstream SocialCallback.
+ * [NiceMatrix] Override of upstream SocialCallback (1.43.0 base).
  *
- * Two deltas on top of the upstream 1.41.0 base:
- *   1. `extractConnectorIdFromPath()` defensive fallback for `connectorId`.
- *      Upstream 1.40 renders SocialCallback inside <Routes> so `useParams()`
- *      normally resolves; we keep the path-parse fallback as defence in depth
- *      (our App.tsx still reaches this component via an `isSocialCallback`
- *      branch, and a future refactor of that branch must not silently break
- *      connectorId resolution).
- *   2. QQ ICP redirect: the verify `redirectUri` must use the connector-specific
- *      callback origin (`getSocialCallbackOriginOverride`) instead of the raw
- *      `window.location.origin`, so QQ's token exchange sees the ICP-filed host.
+ * Single delta: the verify `redirectUri` goes through `getSocialCallbackUri()`,
+ * which swaps in the ICP-filed origin (`id.ej-mobile.cn`) for the QQ connector
+ * and returns `window.location.origin` — i.e. verbatim upstream — for every
+ * other connector. It must produce the SAME string the authorization request
+ * used, so both sides call the one helper.
+ *
+ * 1.43 upgrade note: upstream `b64d46d495` unified the Sign-in Experience and
+ * Account Center social callback URI on `/callback/:connectorId` (routed by the
+ * `state` prefix in `core/src/routes/callback.ts`) precisely so single-redirect
+ * connectors like QQ can serve both flows. That makes the AC redirect URI
+ * identical in shape to the Experience one, so this file now reuses the same
+ * helper instead of composing its own account-center path.
+ *
+ * Also dropped in 1.43: the `extractConnectorIdFromPath()` fallback. Upstream
+ * renders this component inside `<Routes path={`${socialCallbackRoutePrefix}/:connectorId`}>`
+ * (App.tsx), so `useParams()` always resolves; the fallback was dead defensive
+ * code and pure drift.
  */
 import { AccountCenterControlValue, type ExperienceSocialConnector } from '@logto/schemas';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -25,38 +32,15 @@ import {
 } from '@ac/apis/social';
 import ErrorPage from '@ac/components/ErrorPage';
 import GlobalLoading from '@ac/components/GlobalLoading';
-import {
-  getSocialAddRoute,
-  getSocialCallbackRoute,
-  getSocialChangeRoute,
-} from '@ac/constants/routes';
+import { getSocialAddRoute, getSocialChangeRoute } from '@ac/constants/routes';
 import useApi from '@ac/hooks/use-api';
 import useErrorHandler from '@ac/hooks/use-error-handler';
-import { accountCenterBasePath } from '@ac/utils/account-center-route';
 import { canManageSocialIdentitiesWithoutVerification } from '@ac/utils/security-page';
 import { accountStorage } from '@ac/utils/session-storage';
 import { getLocalizedConnectorName } from '@ac/utils/social-connector';
 import { finalizeSocialFlowFailure, finalizeSocialFlowSuccess } from '@ac/utils/social-flow';
-import { socialCallbackRoutePrefix } from '@ac/constants/routes';
-import { getSocialCallbackOriginOverride } from '@experience/utils/social-redirect-override';
-
-/**
- * Extract connectorId from the current URL path as a fallback when useParams()
- * returns nothing. Expected path: /account/callback/social/:connectorId
- */
-const extractConnectorIdFromPath = (): string | undefined => {
-  const prefix = `${accountCenterBasePath}${socialCallbackRoutePrefix}/`;
-  const { pathname } = window.location;
-
-  if (!pathname.startsWith(prefix)) {
-    return undefined;
-  }
-
-  const rest = pathname.slice(prefix.length);
-  const id = rest.split('/')[0];
-
-  return id || undefined;
-};
+// [NiceMatrix] connector-specific callback origin (QQ ICP domain).
+import { getSocialCallbackUri } from '@experience/utils/social-redirect-override';
 
 const SocialCallback = () => {
   const {
@@ -65,9 +49,7 @@ const SocialCallback = () => {
   } = useTranslation();
   const navigate = useNavigate();
   const [searchParameters] = useSearchParams();
-  const { connectorId: routerConnectorId } = useParams<{ connectorId: string }>();
-  // [NiceMatrix] Fallback: extract from URL when useParams resolves nothing.
-  const connectorId = routerConnectorId || extractConnectorIdFromPath();
+  const { connectorId } = useParams<{ connectorId: string }>();
   const {
     accountCenterSettings,
     experienceSettings,
@@ -188,13 +170,10 @@ const SocialCallback = () => {
     };
 
     const completeCallback = async () => {
-      // [NiceMatrix] QQ ICP redirect: use the connector-specific callback origin
-      // override (if any) so QQ token exchange sees the ICP-filed host; falls back
-      // to window.location.origin for every other connector (= upstream behaviour).
-      const callbackOrigin = getSocialCallbackOriginOverride(connectorId) ?? window.location.origin;
-      const redirectUri = `${callbackOrigin}${accountCenterBasePath}${getSocialCallbackRoute(
-        connectorId
-      )}`;
+      // [NiceMatrix] QQ ICP redirect: `getSocialCallbackUri` returns
+      // `${window.location.origin}/callback/${connectorId}` (= upstream) for every
+      // connector except QQ, which gets the ICP-filed origin instead.
+      const redirectUri = getSocialCallbackUri(connectorId);
       const [verifyError] = await verifySocialVerificationRequest({
         verificationRecordId: storedSocialFlow.verificationRecordId,
         connectorData: {

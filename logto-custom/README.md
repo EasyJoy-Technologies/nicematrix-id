@@ -14,6 +14,82 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### `packages/core/src/routes/account/mfa-verifications.ts` — MFA-neutral upgrade (2026-09-14)
+
+**Why**: upstream 1.42 (`d91696c70`) made the Account API write `logtoConfig.mfa.enabled = true`
+at every factor-binding call site (TOTP create, backup codes create, WebAuthn create, TOTP
+verify-and-bind — 4 places). That turns "the user added a verification method" into "the system
+switched two-step verification on for them", contradicting the NiceMatrix rule that two-step
+verification is on only when the user explicitly turns it on. Taking the 1.42 behaviour as part of
+the 1.43 upgrade would also mean the upgrade silently changes MFA semantics, making any production
+incident impossible to attribute cleanly.
+
+**Patch**: verbatim copy of upstream 1.43.0 with the four `logtoConfig:
+buildUpdatedUserLogtoConfig(user, { mfa: { enabled: true } })` writes removed (and the two imports
+that existed only for them). Purely subtractive — binding a factor again writes only
+`mfaVerifications`, exactly as 1.41 did.
+
+**Risk surface**: all six readers of `mfa.enabled` in 1.43 were checked. `isMfaRequired`
+(sign-in enforcement), the legacy interaction verifier, `account/logto-config.ts`,
+`admin-user/basics.ts` and `libraries/user-logto-config.ts` are unaffected. The only visible path is
+`experience/classes/mfa.ts assertOptionalMfaEnablement`: a user with factors bound but
+`enabled=false` sees the "turn on two-step verification" page once; that page has a Skip button which
+persists `mfa.skipped=true` and never prompts again — which is exactly today's 1.41 behaviour, not
+something this override introduces.
+
+**Scope**: stage 1 (upgrade neutrality) only. The explicit-opt-in redesign — including the separate,
+pre-existing `assertMfaEnabledOrSuggest` → `markMfaEnabled()` silent back-fill — is stage 2
+(`docs/mfa-explicit-optin-plan.md`), where this override is expected to be retired or rewritten once
+`user-mfa-state` owns the judgement.
+
+### QQ ICP social callback origin (`experience/src/utils/social-redirect-override.ts` + 3 call sites)
+
+**Why**: QQ互联 requires the OAuth callback domain to carry a Chinese ICP filing.
+`id.nicematrix.com` has none; `id.ej-mobile.cn` does. The helper rewrites the callback origin for
+the QQ connector only (`getSocialCallbackUri(connectorId)` → ICP host for QQ, plain
+`window.location.origin` for everything else — i.e. byte-identical to upstream). The ICP host
+302-bounces the whole path+query back to `id.nicematrix.com`, so cookies and sessionStorage stay on
+the real origin.
+
+**Call sites** (all three must produce the SAME string, since the authorization request and the
+later verification are matched on it):
+- `experience/src/pages/SocialSignInWebCallback/use-social-sign-in-listener.ts` (sign-in flow)
+- `account/src/pages/SocialFlow/index.tsx` (Account Center, 2 places: add + change)
+- `account/src/pages/SocialCallback/index.tsx` (Account Center verification)
+
+**1.43 change (2026-09-14)**: upstream `b64d46d495` **unified the Sign-in Experience and Account
+Center social callback URI** on `/callback/:connectorId`, routed by an OAuth `state` prefix
+(`ac_` → Account Center, `se_` → Experience) in the new `core/src/routes/callback.ts` GET handler —
+explicitly so single-redirect-URI connectors like QQ can serve both flows. Effects on this override:
+- Account Center no longer builds `/account/callback/social/:connectorId`, so all three call sites
+  now share the one `getSocialCallbackUri()` helper instead of two different path shapes. This is a
+  simplification *and* a fix: before, the two flows sent QQ two different redirect URIs.
+- The ICP bounce needs no change — it is a generic path+query-preserving 302 (re-verified live:
+  `https://id.ej-mobile.cn/callback/<qq>?...&state=ac_...` → 302 → same path/query on
+  `id.nicematrix.com`, which then 303s to the account-center callback).
+- The old `extractConnectorIdFromPath()` fallback in `SocialCallback` was **dropped**: upstream
+  renders that component inside `<Routes path={"/callback/social/:connectorId"}>`, so `useParams()`
+  always resolves and the fallback was dead code.
+
+### RETIRED — `packages/core/src/libraries/custom-profile-fields/index.ts` (added 2026-07-15, retired 2026-09-14)
+
+**Was**: exempted the column-backed built-ins `name` / `avatar` from the
+`custom_profile_fields` existence check, because the 1.41 admin seed
+(`profileFields: [{name}, {avatar}]`) made every Console "Sign-in & account" save fail with
+`custom_profile_fields.entity_not_exists_with_names: name, avatar`.
+
+**Why retired**: upstream 1.43 fixed the same root cause differently. The sign-in-experience and
+account-center save paths now call a new `normalizeProfileFields()` which *drops* references to
+fields absent from the catalog instead of throwing, and `validateProfileFieldsList()` is left for
+APIs that intentionally address catalog rows (SIE order updates) — exactly where our exemption
+would have been wrong. Keeping the override would have weakened a check upstream deliberately
+narrowed. Verified safe for us: prod-1's `default` tenant has `account_centers.profile_fields =
+NULL`, and the NiceMatrix Account Center renders its own `ProfileSection` which never reads
+`profileFields`.
+
+> Deploy note: `skills/nicematrix-id-logto-deploy` step 4 (prod-only lineage guard) names
+> `profilefields-fix-20260715`. That lineage is **intentionally absent** from 1.43.0 onwards.
+
 ### `packages/connectors/connector-oidc/src/` — `identitySource` (sub|oid) (2026-06-18)
 
 **Why**: The Microsoft (Entra) connector was migrated from `azuread` to the standard `oidc` connector on 2026-06-17 (for OneDrive token-vault support — the `azuread` connector has no token storage). The stock `oidc` connector hard-codes the Logto identity id to the `sub` claim. Microsoft `sub` is a **pairwise** identifier — unique per *user AND per OIDC application/client_id* — so it differs from the id the old `azuread` connector stored (Graph `id` = MSA CID = `oid` tail) and would change again on any future app/connector re-creation. Result: every existing Microsoft user was re-orphaned (treated as a new user) after the migration. Microsoft's documented immutable, app-independent, Graph-aligned user key is **`oid`** (tenant-stable; strict global = `oid`+`tid`). This override lets the connector key on `oid` instead of `sub`.
@@ -90,7 +166,30 @@ Do not patch built dist bundles. Customize at source level only.
 
 **Why**: Upstream Logto's RFC 8693 token-exchange grant returns **only `access_token`** — never `id_token` or `refresh_token`. NiceMatrix native social login (wechat/alipay/qq) goes through this grant: backend mints a one-shot `subject_token` via `POST /api/subject-tokens`, the App exchanges it for OIDC tokens. Without a refresh_token the App must redo the entire native social handshake on every AT expiry (wechat `code` is one-shot, alipay token short-lived, qq openid+at fragile); without an id_token, ID-token-based user attribute retrieval breaks. RFC 8693 §2.2.1 explicitly permits both tokens in the response.
 
-**Patch**: `core/src/oidc/grants/token-exchange/index.ts` — near-verbatim copy of upstream 1.40.1 with marked `[NiceMatrix override]` delta blocks:
+> **1.43 rewrite (2026-09-14)** — the override was re-derived on the v9 skeleton, not re-applied.
+> 1.42 moved Logto to node-oidc-provider **v9** + Koa 3: the grant handler signature became
+> `(ctx)` with no `await next()`, and all token-endpoint internals now come from the
+> `#src/oidc/oidc-provider-internals.js` seam module (the only module allowed to deep-import
+> `oidc-provider/lib/**`). Consequences for this override:
+> - the hand-rolled id_token block (~35 lines: deep `filter_claims.js` import, manual
+>   `conformIdTokenClaims` branch, manual `at_hash`) is **replaced by the shared
+>   `issueIdToken()` helper**, the same one the forked refresh_token grant uses. The override is
+>   now shorter and strictly closer to upstream.
+> - **`at_hash` is no longer set, and the ID-token JWT header no longer carries `typ: "JWT"`.**
+>   That is an upstream-wide v9 change, not a NiceMatrix decision. Official Logto SDKs are
+>   unaffected; clients that hand-roll ID-token validation must not require those two.
+> - the response is built with the shared `buildTokenResponse()`, so a request without
+>   `openid` / `offline_access` gets byte-identical upstream output.
+> - the refresh_token block stays hand-written (and keeps its explicit
+>   `offline_access && grantTypeAllowed` gate rather than delegating to the provider's
+>   `issueRefreshToken` hook) so the issuance rule is provably unchanged by the upgrade.
+> - the multi-resource `Object.create(ctx)` derivation was **re-verified against the v9 fork**
+>   (`lib/helpers/resolve_resource.js`): the array → `defaultResource()` → `InvalidTarget`
+>   sequence is unchanged, and upstream's own 1.43 fake model `new Set([params.resource])` would
+>   additionally fail the membership check when `resource` is repeated — so the delta is still
+>   load-bearing. All 16 cases of `logto-custom/tests/test-token-exchange-multi-resource.js` pass.
+
+**Patch**: `core/src/oidc/grants/token-exchange/index.ts` — near-verbatim copy of upstream with marked `[NiceMatrix override]` delta blocks:
 
 - destructure `RefreshToken` + `IdToken` constructors from `provider`.
 - issue `refresh_token` when `scope` has `offline_access` **and** `client.grantTypeAllowed(RefreshToken)`; anchor it to the **same `grantId`** as the access token so the standard `grant_type=refresh_token` grant rotates it normally; copy `jkt` / `x5t#S256` onto the RT for public clients (DPoP / mTLS binding), mirroring the auth_code grant.

@@ -22,6 +22,7 @@ import Drawer from '@/components/Drawer';
 import Markdown from '@/components/Markdown';
 import PageMeta from '@/components/PageMeta';
 import UnnamedTrans from '@/components/UnnamedTrans';
+import { isCloud } from '@/consts/env';
 import { ConnectorsTabs } from '@/consts/page-tabs';
 import TabNav, { TabNavItem } from '@/ds-components/TabNav';
 import type { RequestError } from '@/hooks/use-api';
@@ -33,6 +34,7 @@ import useTenantPathname from '@/hooks/use-tenant-pathname';
 import ConnectorContent from './ConnectorContent';
 import ConnectorTabs from './ConnectorTabs';
 import ConnectorTypeName from './ConnectorTypeName';
+import EmailLogs from './EmailLogs';
 import EmailUsage from './EmailUsage';
 import styles from './index.module.scss';
 
@@ -40,9 +42,16 @@ import styles from './index.module.scss';
 const getConnectorsPathname = (isSocial: boolean) =>
   `/connectors/${isSocial ? ConnectorsTabs.Social : ConnectorsTabs.Passwordless}`;
 
+/** Path segment of the hosted-email logs tab (`/connectors/:tab/:connectorId/email-logs`). */
+const emailLogsTab = 'email-logs';
+
+/** The hosted-email log only exists for the cloud built-in email service connector. */
+const isEmailLogsAvailable = (data?: ConnectorResponse) =>
+  isCloud && data?.type === ConnectorType.Email && data.connectorId === ServiceConnector.Email;
+
 function ConnectorDetails() {
   const { pathname } = useLocation();
-  const { connectorId } = useParams();
+  const { connectorId, connectorTab } = useParams();
   const { createConnector } = useConnectorApi();
   const { mutate: mutateGlobal } = useSWRConfig();
   const [isDeleted, setIsDeleted] = useState(false);
@@ -71,6 +80,7 @@ function ConnectorDetails() {
   const api = useApi();
   const { navigate } = useTenantPathname();
   const isSocial = data?.type === ConnectorType.Social;
+  const showEmailLogsTab = isEmailLogsAvailable(data);
 
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -135,7 +145,7 @@ function ConnectorDetails() {
               }
             )}
             additionalCustomElement={conditional(
-              data.type === ConnectorType.Email && data.usage !== undefined && (
+              data.type === ConnectorType.Email && data.connectorId === ServiceConnector.Email && (
                 <EmailUsage usage={data.usage} />
               )
             )}
@@ -198,18 +208,39 @@ function ConnectorDetails() {
             }}
           />
           <TabNav>
-            <TabNavItem href={`${getConnectorsPathname(isSocial)}/${connectorId}`}>
+            <TabNavItem
+              href={`${getConnectorsPathname(isSocial)}/${connectorId}`}
+              // Mirrors the content conditional below: when the email-logs tab is unavailable the
+              // settings content is shown regardless of the URL, so settings stays the active tab.
+              isActive={!showEmailLogsTab || connectorTab !== emailLogsTab}
+            >
               {t('general.settings_nav')}
             </TabNavItem>
+            {showEmailLogsTab && (
+              <TabNavItem
+                href={`${getConnectorsPathname(isSocial)}/${connectorId}/${emailLogsTab}`}
+                isActive={connectorTab === emailLogsTab}
+              >
+                {t('connector_details.email_logs.title')}
+              </TabNavItem>
+            )}
           </TabNav>
-          <ConnectorContent
-            key={data.id}
-            isDeleted={isDeleted}
-            connectorData={data}
-            onConnectorUpdated={(connector) => {
-              void mutate(connector);
-            }}
-          />
+          {showEmailLogsTab && connectorTab === emailLogsTab ? (
+            <EmailLogs />
+          ) : (
+            <ConnectorContent
+              // [NiceMatrix override] Remount the form when the connector changes.
+              // ConnectorContent seeds react-hook-form defaults only on mount, so
+              // navigating between two connector detail pages kept the previous
+              // connector's config in the form.
+              key={data.id}
+              isDeleted={isDeleted}
+              connectorData={data}
+              onConnectorUpdated={(connector) => {
+                void mutate(connector);
+              }}
+            />
+          )}
           <DeleteConnectorConfirmModal
             isOpen={isDeleteAlertOpen}
             isLoading={isDeleting}

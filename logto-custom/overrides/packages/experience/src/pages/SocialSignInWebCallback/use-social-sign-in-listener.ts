@@ -31,6 +31,7 @@ import { parseQueryParameters } from '@/utils';
 import { validateGoogleOneTapCredential } from '@/utils/social-connectors';
 
 import { normalizeExternalWebsiteGoogleOneTapConnectorData } from './utils';
+// [NiceMatrix] App-context error hand-off + QQ ICP callback origin.
 import { buildErrorHandoffUrl } from '@/utils/native-caps';
 import { getSocialCallbackUri } from '@/utils/social-redirect-override';
 
@@ -52,11 +53,19 @@ const useSocialSignInListener = (connectorId: string) => {
   const navigate = useNavigateWithPreservedSearchParams();
   const handleError = useErrorHandler();
   const bindSocialRelatedUser = useBindSocialRelatedUser();
-  const registerWithSocial = useSocialRegister(connectorId, true);
   const verifySocial = useApi(verifySocialVerification);
   const asyncSignInWithSocial = useApi(identifyAndSubmitInteraction);
   const asyncInitInteraction = useApi(initInteraction);
   const redirectTo = useGlobalRedirectTo();
+
+  const navigateToSignIn = useCallback(() => {
+    navigate('/' + experience.routes.signIn, { replace: true });
+  }, [navigate]);
+
+  const registerWithSocial = useSocialRegister(connectorId, {
+    replace: true,
+    onEmailBlocked: navigateToSignIn,
+  });
 
   const accountNotExistErrorHandler = useCallback(
     async (error: RequestErrorBody) => {
@@ -67,7 +76,7 @@ const useSocialSignInListener = (connectorId: string) => {
       // Redirect to sign-in page if the verificationId is not set properly
       if (!verificationId) {
         setToast(t('error.invalid_session'));
-        navigate('/' + experience.routes.signIn);
+        navigateToSignIn();
         return;
       }
 
@@ -87,7 +96,7 @@ const useSocialSignInListener = (connectorId: string) => {
       // Should not let user register new social account under sign-in only mode
       if (signInMode === SignInMode.SignIn) {
         setToast(error.message);
-        navigate('/' + experience.routes.signIn);
+        navigateToSignIn();
         return;
       }
 
@@ -98,6 +107,7 @@ const useSocialSignInListener = (connectorId: string) => {
       bindSocialRelatedUser,
       connectorId,
       navigate,
+      navigateToSignIn,
       registerWithSocial,
       setToast,
       signInMode,
@@ -110,13 +120,14 @@ const useSocialSignInListener = (connectorId: string) => {
   const globalErrorHandler = useCallback(
     async (error: RequestErrorBody) => {
       setToast(error.message);
-      navigate('/' + experience.routes.signIn);
+      navigateToSignIn();
     },
-    [navigate, setToast]
+    [navigateToSignIn, setToast]
   );
 
   const preSignInErrorHandler = useSubmitInteractionErrorHandler(InteractionEvent.SignIn, {
     replace: true,
+    onEmailBlocked: navigateToSignIn,
   });
 
   const signInWithSocialErrorHandlers: ErrorHandlers = useMemo(
@@ -141,6 +152,8 @@ const useSocialSignInListener = (connectorId: string) => {
         verificationId: verificationIdRef.current,
         connectorData: {
           // For validation use only
+          // [NiceMatrix] QQ ICP redirect: identical to upstream for every
+          // connector except QQ, which must use the ICP-filed origin.
           redirectUri: getSocialCallbackUri(connectorId),
           ...data,
         },
@@ -237,7 +250,7 @@ const useSocialSignInListener = (connectorId: string) => {
       const result = validateAndRestore(state);
 
       if (!result.valid) {
-        // NiceMatrix Bug-A defence layer:
+        // [NiceMatrix] Bug-A defence layer:
         // When this SPA is rendered inside ASWebAuthenticationSession / Chrome
         // Custom Tabs (i.e. an App-launched bind/sign-in flow) and the social
         // state is missing/expired, navigating to /sign-in leaves the webview

@@ -1,10 +1,12 @@
 /*
  * [NiceMatrix override] vs upstream: this file is a near-verbatim copy of
- *   logto-upstream/packages/core/src/oidc/grants/token-exchange/index.ts (1.39.0)
- * with delta blocks (search "[NiceMatrix override]" markers) that extend the
- * RFC 8693 token-exchange response with `id_token` (when scope includes `openid`)
- * and `refresh_token` (when scope includes `offline_access` AND the client has
- * the `refresh_token` grant type enabled).
+ *   logto-upstream/packages/core/src/oidc/grants/token-exchange/index.ts (1.43.0)
+ * with delta blocks (search "[NiceMatrix override]" markers) that
+ *   (1) extend the RFC 8693 token-exchange response with `id_token` (scope
+ *       contains `openid`) and `refresh_token` (scope contains `offline_access`
+ *       and the client has the `refresh_token` grant type enabled), and
+ *   (2) accept a REPEATED `resource` parameter so one native login can serve
+ *       several API resource indicators.
  *
  * Rationale: native mobile apps go through the multi-app social login flow
  *   (backend mints a subject_token via /api/subject-tokens → app exchanges
@@ -16,37 +18,76 @@
  *   permits refresh_token and id_token in the response.
  *
  * Behaviour:
- *   - Pure increment. Requests without `openid` / `offline_access` scope
- *     get the exact same response as before (only access_token).
- *   - Refresh token is anchored to the SAME grantId as the access token,
- *     so subsequent grant_type=refresh_token finds the grant and rotates
- *     normally (handled by the upstream refresh_token grant unchanged).
- *   - For public clients (clientAuthMethod === 'none', i.e. native apps)
- *     we copy AT's jkt / x5t#S256 onto the refresh token, mirroring the
- *     upstream authorization_code grant behaviour (DPoP / mTLS binding).
- *   - For id_token issuance we follow the auth_code grant pattern verbatim:
- *     same claim filtering, same conformIdTokenClaims handling, same
- *     at_hash / sid / nonce / acr / amr / auth_time semantics.
+ *   - Pure increment. Requests without `openid` / `offline_access` scope get
+ *     byte-identical output to upstream (`buildTokenResponse` drops the
+ *     undefined members).
+ *   - Refresh token is anchored to the SAME grantId as the access token, so a
+ *     subsequent grant_type=refresh_token finds the grant and rotates normally
+ *     (handled by the upstream refresh_token grant, unchanged).
+ *   - For public clients (clientAuthMethod === 'none', i.e. native apps) the
+ *     AT's jkt / x5t#S256 are copied onto the refresh token, mirroring the
+ *     upstream authorization_code grant (DPoP / mTLS binding).
+ *   - The id_token is minted by the SHARED v9 helper `issueIdToken` (seam
+ *     module `oidc/oidc-provider-internals.js`), exactly as the forked
+ *     refresh_token grant does. 1.43 note: that helper no longer sets
+ *     `at_hash` and the JWT header no longer carries `typ: "JWT"` — an
+ *     upstream-wide v9 change, not a NiceMatrix decision. Official Logto SDKs
+ *     are unaffected; clients that hand-roll ID-token validation must not
+ *     require those two.
+ *
+ * 1.43 upgrade note: the pre-1.42 override hand-rolled the id_token (deep
+ * `filter_claims.js` import + manual at_hash + manual conformIdTokenClaims
+ * branch) because v8 exposed no reusable helper. v9 added `grant_common.js`,
+ * re-exported through the seam module, so those ~35 lines are gone. Do not
+ * reintroduce deep `oidc-provider/lib/**` imports here — the seam module is
+ * the only place allowed to do that.
  *
  * On upstream sync, re-diff against upstream and re-apply the marker blocks.
+ *
+ * @see {@link https://github.com/logto-io/rfcs | Logto RFCs} for more information about RFC 0005.
+ *
+ * @remarks
+ * Unlike the `refresh_token` and `client_credentials` grants, this grant is Logto's own and has
+ * no upstream counterpart to stay in sync with. It still consumes the shared token-endpoint
+ * helpers from v9's `grant_common.js` through the `oidc-provider-internals.js` seam module, so
+ * the sender-constraining (mTLS and DPoP) behavior stays aligned with the forked grants.
+ *
+ * This grant is deliberately a first-party-only capability: subject tokens are minted through
+ * the Management API by the tenant's own trusted backends, and the exchange involves no user
+ * consent, while third-party access is governed by the consent model — the two are mutually
+ * exclusive, so third-party applications can never enable this grant type (enforced when
+ * configuring applications, see `assertThirdPartyApplicationTokenExchangeDisabled`). That is
+ * also why no per-client scope filtering happens here: every client that can reach this grant
+ * is first-party and carries no scope allowlist, so issued scopes are capped only by what the
+ * user owns and by the global OIDC scope set. A third party that needs an exchanged token
+ * should obtain it from the tenant's own machine-to-machine backend instead of performing the
+ * exchange itself.
  */
 
 import { buildOrganizationUrn } from '@logto/core-kit';
 import { GrantType } from '@logto/schemas';
 import { nanoid } from 'nanoid';
-import type { Provider } from 'oidc-provider';
 import { errors } from 'oidc-provider';
-// eslint-disable-next-line import/no-unresolved
-import filterClaims from 'oidc-provider/lib/helpers/filter_claims.js';
-// eslint-disable-next-line import/no-unresolved
-import resolveResource from 'oidc-provider/lib/helpers/resolve_resource.js';
-// eslint-disable-next-line import/no-unresolved
-import validatePresence from 'oidc-provider/lib/helpers/validate_presence.js';
-// eslint-disable-next-line import/no-unresolved
-import instance from 'oidc-provider/lib/helpers/weak_cache.js';
 
 import { type EnvSet } from '#src/env-set/index.js';
 import { assertUserHasApplicationAccessForOidc } from '#src/oidc/application-access-control.js';
+import {
+  applyDpopBinding,
+  applyMtlsBinding,
+  // [NiceMatrix override] shared token-endpoint helpers reused for the extra tokens.
+  buildTokenResponse,
+  checkDpopRequired,
+  checkMtlsCert,
+  createAccessToken,
+  dpopValidate,
+  getProviderConfiguration,
+  type GrantTypeHandler,
+  // [NiceMatrix override] shared id_token minting (same helper the refresh_token grant uses).
+  issueIdToken,
+  resolveResource,
+  validateAccount,
+  validatePresence,
+} from '#src/oidc/oidc-provider-internals.js';
 import type Libraries from '#src/tenants/Libraries.js';
 import type Queries from '#src/tenants/Queries.js';
 import assertThat from '#src/utils/assert-that.js';
@@ -56,7 +97,7 @@ import {
   isThirdPartyApplication,
   reversedResourceAccessTokenTtl,
 } from '../../resource.js';
-import { handleClientCertificate, handleDPoP, checkOrganizationAccess } from '../utils.js';
+import { checkOrganizationAccess } from '../utils.js';
 
 import { validateSubjectToken } from './account.js';
 import { handleActorToken } from './actor-token.js';
@@ -92,13 +133,13 @@ type Handler = (
   envSet: EnvSet,
   queries: Queries,
   applicationAccessControl: Libraries['applicationAccessControl']
-) => Parameters<Provider['registerGrantType']>[1];
+) => GrantTypeHandler;
 
-export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx, next) => {
+export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx) => {
   const { client, params, requestParamScopes, provider } = ctx.oidc;
-  // [NiceMatrix override] Pull RefreshToken + IdToken constructors so we can
-  // mint the extra tokens. Upstream destructures only { Account, AccessToken, Grant }.
-  const { Account, AccessToken, Grant, RefreshToken, IdToken } = provider;
+  // [NiceMatrix override] Pull the RefreshToken constructor so we can mint the
+  // extra token. Upstream destructures only { AccessToken, Grant }.
+  const { AccessToken, Grant, RefreshToken } = provider;
 
   assertThat(params, new InvalidGrant('parameters must be available'));
   assertThat(client, new InvalidClient('client must be available'));
@@ -107,13 +148,19 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
 
   validatePresence(ctx, ...requiredParameters);
 
-  const providerInstance = instance(provider);
   const {
-    features: { userinfo, resourceIndicators },
+    features: {
+      userinfo,
+      resourceIndicators,
+      mTLS: { getCertificate },
+    },
     scopes: oidcScopes,
-    // [NiceMatrix override] needed for id_token claim conformance + RT issuance policy.
+    findAccount,
+    // [NiceMatrix override] needed by the shared `issueIdToken` helper below.
     conformIdTokenClaims,
-  } = providerInstance.configuration();
+  } = getProviderConfiguration(provider);
+
+  const dPoP = await dpopValidate(ctx);
 
   const { userId, subjectTokenId } = await validateSubjectToken({
     queries,
@@ -126,11 +173,7 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
     },
   });
 
-  const account = await Account.findAccount(ctx, userId);
-
-  if (!account) {
-    throw new InvalidGrant('subject token invalid (referenced account not found)');
-  }
+  const account = await validateAccount(ctx, findAccount, { accountId: userId }, 'subject token');
 
   ctx.oidc.entity('Account', account);
 
@@ -151,25 +194,33 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
     clientId: client.clientId,
   } as ConstructorParameters<typeof Grant>[0]);
 
-  const { organizationId } = await checkOrganizationAccess(ctx, queries, account, isThirdParty);
-
-  const accessToken = new AccessToken({
-    accountId: account.accountId,
-    clientId: client.clientId,
-    gty: GrantType.TokenExchange,
-    client,
-    grantId,
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    scope: undefined!,
-    extra: {
-      ...(subjectTokenId ? { subjectTokenId } : {}),
-    },
+  const { organizationId } = await checkOrganizationAccess(ctx, {
+    envSet,
+    queries,
+    account,
+    isThirdParty,
   });
 
-  await handleDPoP(ctx, accessToken);
-  await handleClientCertificate(ctx, accessToken);
+  const accessToken = createAccessToken(
+    ctx,
+    AccessToken,
+    {
+      accountId: account.accountId,
+      grantId,
+    },
+    GrantType.TokenExchange
+  );
+  accessToken.extra = {
+    ...(subjectTokenId ? { subjectTokenId } : {}),
+  };
 
-  /** The scopes requested by the client. If not provided, use the scopes from the refresh token. */
+  await applyDpopBinding(ctx, dPoP, accessToken);
+  checkDpopRequired(ctx, dPoP);
+
+  const cert = checkMtlsCert(ctx, getCertificate);
+  applyMtlsBinding(accessToken, cert);
+
+  /** The scopes requested by the client. */
   const scope = requestParamScopes;
 
   // [NiceMatrix override] === BEGIN multi-resource normalization ===
@@ -201,6 +252,10 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
   // routes arrays through `resourceIndicators.defaultResource()`, and Logto's
   // implementation IGNORES the passed candidates and returns the tenant-wide
   // default resource — which would silently mint a token for the WRONG audience.
+  // (Re-verified against the v9 fork `lib/helpers/resolve_resource.js`: the
+  // array → defaultResource → throw sequence is unchanged, and upstream's own
+  // 1.43 fake model `new Set([params.resource])` would additionally fail the
+  // membership check because the Set would hold the array object itself.)
   // So we must never hand it an array: give it a view of `ctx` whose
   // `oidc.params.resource` is pinned to the primary value.
   //
@@ -235,8 +290,10 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
       // We don't restrict the resource indicators to the requested resource,
       // because the subject token does not have a resource indicator.
       // Use the params.resource to bypass the resource indicator check.
-      // [NiceMatrix override] seed with every requested indicator (was a single
-      // value) so the primary passes the membership check unchanged.
+      // [NiceMatrix override] seed with every requested indicator (upstream seeds
+      // the single `params.resource`) so the primary passes the membership check
+      // unchanged. With zero or one requested resource this Set is identical to
+      // upstream's for every reachable code path.
       resourceIndicators: new Set(requestedResources),
     },
     { userinfo, resourceIndicators },
@@ -328,13 +385,14 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
   }
 
   // [NiceMatrix override] When the resource / organization branches above run,
-  // grant only got the resource scope. For id_token issuance and for the
-  // refresh_token follow-up `grant_type=refresh_token` call to honour OIDC
-  // scopes (openid / offline_access / profile / email / ...), we must also
-  // register the OIDC subset on the grant. Idempotent: the pure-OIDC branch
+  // the grant only got the resource scope. For id_token issuance and for the
+  // follow-up `grant_type=refresh_token` call to honour OIDC scopes
+  // (openid / offline_access / profile / email / ...), we must also register the
+  // OIDC subset on the grant — `issueIdToken` filters through
+  // `grant.getOIDCScopeFiltered(scope)`. Idempotent: the pure-OIDC branch above
   // already added them and Grant#addOIDCScope is additive.
   const oidcScopeSet = new Set<string>(oidcScopes as unknown as Iterable<string>);
-  const requestedOidcScope = [...scope].filter((s) => oidcScopeSet.has(s)).join(' ');
+  const requestedOidcScope = [...scope].filter((name) => oidcScopeSet.has(name)).join(' ');
   if (requestedOidcScope) {
     grant.addOIDCScope(requestedOidcScope);
   }
@@ -369,6 +427,11 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
   //   (1) the client has the `refresh_token` grant type enabled in its metadata
   //   (Logto's syncAppToLogto() includes RefreshToken for Native / SPA / Web), and
   //   (2) `offline_access` is in the requested scope.
+  // The gate is kept explicit here (rather than delegating to the provider's
+  // `issueRefreshToken` config hook) so this grant's issuance rule is unchanged
+  // by the 1.43 upgrade — the hook additionally issues for
+  // `applicationType === 'web' && alwaysIssueRefreshToken`, which no
+  // token-exchange client is.
   let refreshTokenString: string | undefined;
   if (scope.has('offline_access') && client.grantTypeAllowed(GrantType.RefreshToken)) {
     const rt = new RefreshToken({
@@ -383,8 +446,8 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
       scope: [...scope].join(' '),
       // Preserve resource audience binding across rotations, mirroring upstream
       // authorization_code grant (`resource: code.resource`).
-      // [NiceMatrix override] Persist ALL requested indicators when more than one
-      // was asked for. oidc-provider's `BaseToken#resourceIndicators` getter is
+      // Persist ALL requested indicators when more than one was asked for.
+      // oidc-provider's `BaseToken#resourceIndicators` getter is
       // `new Set(Array.isArray(this.resource) ? this.resource : [this.resource])`,
       // so an array makes every listed resource a valid refresh target while a
       // single value keeps the exact pre-existing shape (and therefore the exact
@@ -394,23 +457,18 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
       resource: requestedResources.length > 1 ? requestedResources : primaryResource,
       // Carry over claims (may be undefined for resource / org branches) so the
       // refresh grant's id_token path has the same claim shape as ours.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      claims: (accessToken as any).claims,
+      claims: accessToken.claims,
     } as ConstructorParameters<typeof RefreshToken>[0]);
 
     // Public clients (Native + SPA, clientAuthMethod === 'none') must bind the
-    // refresh token to the same DPoP / mTLS proof as the access token,
-    // matching upstream authorization_code grant behaviour.
+    // refresh token to the same DPoP / mTLS proof as the access token, matching
+    // the upstream authorization_code grant (`setRefreshTokenBindings`).
     if (client.clientAuthMethod === 'none') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const atAny = accessToken as any;
-      if (atAny.jkt) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rt as any).jkt = atAny.jkt;
+      if (accessToken.jkt) {
+        rt.jkt = accessToken.jkt;
       }
-      if (atAny['x5t#S256']) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (rt as any)['x5t#S256'] = atAny['x5t#S256'];
+      if (accessToken['x5t#S256']) {
+        rt['x5t#S256'] = accessToken['x5t#S256'];
       }
     }
 
@@ -420,51 +478,34 @@ export const buildHandler: Handler = (envSet, queries, appAccess) => async (ctx,
   // [NiceMatrix override] === END refresh_token issuance ===
 
   // [NiceMatrix override] === BEGIN id_token issuance ===
-  // Mirror the upstream authorization_code grant when openid scope is present.
-  let idTokenString: string | undefined;
-  if (scope.has('openid')) {
-    // `accessToken.claims` may be undefined for the resource / organization branches.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const atClaims = (accessToken as any).claims as Record<string, unknown> | undefined;
-    const filteredClaims = filterClaims(atClaims, 'id_token', grant);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rejected: string[] = (grant as any).getRejectedOIDCClaims();
-    const token = new IdToken(
-      {
-        ...(await account.claims('id_token', [...scope].join(' '), filteredClaims, rejected)),
-      },
-      { ctx }
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tokenAny = token as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const atAny = accessToken as any;
-    if (conformIdTokenClaims && userinfo.enabled && !atAny.aud) {
-      tokenAny.scope = 'openid';
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tokenAny.scope = (grant as any).getOIDCScopeFiltered(scope);
-    }
-    tokenAny.mask = filteredClaims;
-    tokenAny.rejected = rejected;
-    token.set('at_hash', accessTokenString);
-
-    idTokenString = await token.issue({ use: 'idtoken' });
-  }
+  // Delegate to the shared v9 helper, exactly as the forked refresh_token grant
+  // does. It returns `undefined` when the scope has no `openid`, so requests
+  // without it keep the byte-identical upstream response.
+  //
+  // There is no source token in a token exchange (no interactive session), so we
+  // pass a minimal source carrying only `claims`; every other member the helper
+  // reads (`acr` / `amr` / `authTime` / `nonce` / `sid`) is legitimately absent
+  // here and the helper tolerates `undefined` (the same shape a refresh token
+  // minted without a nonce produces). `scopeOverride` is the request scope, so
+  // the helper never reads `source.scope` / `source.scopes`.
+  const idTokenString = await issueIdToken(
+    ctx,
+    { claims: accessToken.claims } as unknown as Parameters<typeof issueIdToken>[1],
+    accessToken,
+    grant,
+    { conformIdTokenClaims, userinfo },
+    scope
+  );
   // [NiceMatrix override] === END id_token issuance ===
 
-  ctx.body = {
-    access_token: accessTokenString,
-    expires_in: accessToken.expiration,
-    scope: accessToken.scope,
-    token_type: accessToken.tokenType,
-    // [NiceMatrix override] Conditionally include id_token / refresh_token.
-    // Omitted (undefined ⇒ JSON-serialised out) when corresponding scope absent.
-    ...(idTokenString === undefined ? {} : { id_token: idTokenString }),
-    ...(refreshTokenString === undefined ? {} : { refresh_token: refreshTokenString }),
-  };
-
-  await next();
+  // [NiceMatrix override] Response built through the shared `buildTokenResponse`
+  // helper so `id_token` / `refresh_token` are included only when issued
+  // (undefined members are dropped by JSON serialisation) and the remaining
+  // fields stay identical to upstream.
+  ctx.body = buildTokenResponse(accessToken, accessTokenString, {
+    idToken: idTokenString,
+    refreshToken: refreshTokenString,
+    source: { scope: accessToken.scope },
+  });
 };
 /* eslint-enable @silverhand/fp/no-mutation, @typescript-eslint/no-unsafe-assignment */

@@ -12,6 +12,7 @@ import adminUserRoleRoutes from './role.js';
 import adminUserSearchRoutes from './search.js';
 import adminUserSessionRoutes from './session.js';
 import adminUserSocialRoutes from './social.js';
+import adminUserTrustedDeviceRoutes from './trusted-device.js';
 // [NiceMatrix override] read-only assert of a sensitive-op verification record
 // (step-up gate for native social bind/unbind). See verification-records.ts.
 import adminUserVerificationRecordsRoutes from './verification-records.js';
@@ -37,4 +38,5 @@ export default function adminUserRoutes<T extends ManagementApiRouter>(...args: 
   adminUserPersonalAccessTokenRoutes(...args);
   adminUserEnterpriseSsoRoutes(...args);
   adminUserSessionRoutes(...args);
+  adminUserTrustedDeviceRoutes(...args);
 }

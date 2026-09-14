@@ -1,6 +1,9 @@
 import {
   LogResult,
   userInfoSelectFields,
+  type BetterOmit,
+  type ExceptionHookEventPayload,
+  type GrantLimitExceededEventData,
   type Hook,
   type HookConfig,
   type HookEvent,
@@ -28,10 +31,6 @@ import { generateHookTestPayload, parseResponse, sendWebhookRequest } from './ut
 // Pure, dependency-free predicate extracted to its own module so it can be
 // unit-tested standalone (see logto-custom/tests/test-region-routing.js).
 import { hookMatchesRegion } from './region-routing.js';
-
-type BetterOmit<T, Ignore> = {
-  [key in keyof T as key extends Ignore ? never : key]: T[key];
-};
 
 type HookEventPayloadWithoutHookId = BetterOmit<HookEventPayload, 'hookId'>;
 
@@ -129,7 +128,19 @@ export const createHookLibrary = (queries: Queries) => {
       return;
     }
 
-    const { interactionEvent, sessionId, applicationId, userIp, userAgent, deviceRef, appSlug, region } = metadata;
+    // [NiceMatrix] `deviceRef` / `appSlug` / `region` are NiceMatrix ExtraParams
+    // forwarded into the interaction webhook payload (see docs/custom-extra-params.md).
+    const {
+      interactionEvent,
+      sessionId,
+      applicationId,
+      cimdClientId,
+      userIp,
+      userAgent,
+      deviceRef,
+      appSlug,
+      region,
+    } = metadata;
 
     const found = await findAllHooks();
 
@@ -184,6 +195,7 @@ export const createHookLibrary = (queries: Queries) => {
         region,
         user: user && pick(user, ...userInfoSelectFields),
         application: application && pick(application, 'id', 'type', 'name', 'description'),
+        cimdClientId,
       } satisfies BetterOmit<InteractionHookEventPayload, 'hookId'>;
 
       // eslint-disable-next-line @silverhand/fp/no-mutating-methods
@@ -277,12 +289,13 @@ export const createHookLibrary = (queries: Queries) => {
 
     // Fetch application detail if available
     const { applicationId } = metadata;
+    const { ip, ...metadataWithoutIp } = metadata;
     const application =
       foundHooks.length > 0 && applicationId
         ? await trySafe(async () => findApplicationById(applicationId))
         : undefined;
 
-    return contextArray.flatMap(({ event, ...rest }) => {
+    return contextArray.flatMap(({ event, includeRequestIp = true, ...rest }) => {
       const hooks = foundHooks.filter(
         ({ event: hookEvent, events, enabled }) =>
           enabled && (events.length > 0 ? events.includes(event) : event === hookEvent)
@@ -291,7 +304,8 @@ export const createHookLibrary = (queries: Queries) => {
       const payload = {
         event,
         createdAt: new Date().toISOString(),
-        ...metadata,
+        ...metadataWithoutIp,
+        ...conditional(includeRequestIp && { ip }),
         ...conditional(
           application && { application: pick(application, 'id', 'type', 'name', 'description') }
         ),
@@ -302,10 +316,62 @@ export const createHookLibrary = (queries: Queries) => {
     });
   }
 
+  /**
+   * Trigger a hook event directly, enriched with standard metadata.
+   *
+   * Unlike `triggerInteractionHooks` / `triggerDataHooks` / `triggerExceptionHooks`, this method
+   * does not go through the `HookContextManager` because callers (e.g., OIDC event listeners)
+   * operate outside the middleware request context. Instead it accepts explicit metadata fields
+   * and enriches the payload with application detail and standard fields (`ip`, `userAgent`)
+   * to match the shape of other exception hook events.
+   *
+   * Note: the hook-matching and payload-enrichment logic here intentionally mirrors what
+   * `buildWebhooks` does, since both need the same semantics but operate on different context
+   * shapes. Keep both in sync when changing either one.
+   */
+  const triggerEvent = async (
+    consoleLog: ConsoleLog,
+    event: 'Grant.LimitExceeded',
+    payload: GrantLimitExceededEventData,
+    metadata?: { ip?: string; userAgent?: string }
+  ) => {
+    const hooks = await findAllHooks();
+    const matchingHooks = hooks.filter(
+      ({ event: hookEvent, events, enabled }) =>
+        enabled && (events.length > 0 ? events.includes(event) : event === hookEvent)
+    );
+
+    if (matchingHooks.length === 0) {
+      return;
+    }
+
+    const { applicationId } = payload;
+    /** A CIMD-attributed payload carries no registered application id to enrich with. */
+    const application = conditional(
+      applicationId && (await trySafe(async () => findApplicationById(applicationId)))
+    );
+
+    const webhookPayloads = matchingHooks.map((hook) => ({
+      hook,
+      payload: {
+        event,
+        createdAt: new Date().toISOString(),
+        ...metadata,
+        ...conditional(
+          application && { application: pick(application, 'id', 'type', 'name', 'description') }
+        ),
+        ...payload,
+      } satisfies BetterOmit<ExceptionHookEventPayload, 'hookId'>,
+    }));
+
+    await sendWebhooks(webhookPayloads, consoleLog);
+  };
+
   return {
     triggerInteractionHooks,
     triggerDataHooks,
     triggerExceptionHooks,
     triggerTestHook,
+    triggerEvent,
   };
 };

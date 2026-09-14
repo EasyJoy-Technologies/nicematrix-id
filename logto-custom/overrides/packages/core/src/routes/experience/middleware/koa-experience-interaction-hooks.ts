@@ -9,6 +9,7 @@ import {
   InteractionHookContextManager,
 } from '#src/libraries/hook/context-manager.js';
 import { type WithInteractionDetailsContext } from '#src/middleware/koa-interaction-details.js';
+import { getClientIdentifierPayload } from '#src/oidc/cimd/index.js';
 import type Libraries from '#src/tenants/Libraries.js';
 import { getConsoleLogFromContext } from '#src/utils/console.js';
 
@@ -54,7 +55,7 @@ export function koaExperienceInteractionHooks<
     const interactionApiMetadata = {
       interactionEvent,
       userAgent,
-      applicationId: conditionalString(interactionDetails.params.client_id),
+      ...getClientIdentifierPayload(conditionalString(interactionDetails.params.client_id)),
       sessionId: interactionDetails.jti,
       // [NiceMatrix] Pass device_ref, app_slug and region from OIDC extra params to webhook payload
       deviceRef: conditionalString(interactionDetails.params.device_ref),
