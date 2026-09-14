@@ -177,6 +177,7 @@
   prod-3(cn) 跨境共用 prod-1 Logto，一次生效，cn 侧无独立 Logto 动作。
 - **Stage 6 收尾**：三台主机 `/etc/nicematrix/backend.env` 的 `LOGTO_VERSION` 改 `1.43.0` + 重启 backend；
   更新 `memory/runbooks/infrastructure.md` 版本行、`logto-custom/README.md`、本目录 `POST-UPGRADE-REVIEW.md`。
+- **Stage 7 文档系统同步（硬性收尾，不做不算完工）** → 见 §9。
 
 ## 8. 回滚
 
@@ -186,7 +187,42 @@
 因此"镜像回滚 + 保留新表"是安全的回滚姿势；**不要**跑 `alteration rollback`。
 确需 DB 回退时才用 Stage 0 的 `pg_dumpall`。
 
-## 9. 开工前置动作项
+## 9. 发布收尾：文档系统必须同步到最新
+
+> **硬性要求：开发完成后必须更新对外文档站，不得残留旧内容误导客户端开发。**
+
+文档站两个入口（两个 region 各一套，**都要更**）：
+
+| 入口 | 内容来源 | 发布方式 |
+|---|---|---|
+| `m.ej-mobile.cn/docs/`（cn）<br>`m.nicematrix.com/docs/`（intl） | backend 仓 `docs/**.md` 静态文件，清单由 `apps/admin-web/src/shared/docs/manifest.ts` 驱动 | 随 **admin-web 部署**落到 webroot |
+| `m.ej-mobile.cn/docs/api/`<br>`m.nicematrix.com/docs/api/` | `server.js` 的 `@api` 注释块 → `npm run docs:generate` → `docs/integration/openapi-docs.yaml` | 同上（`prebuild` 已强制跑 `docs:generate`） |
+
+### 本阶段（升级）需核改的页面
+
+本阶段不改任何后端路由，所以 **OpenAPI 无需重生**；但以下 **客户端契约变更**必须写进文档：
+
+| 文档页 | 必须更新的内容 |
+|---|---|
+| `docs/integration/logto-sdk.md` | ① ID token 在 token 端点**不再带 `at_hash`**、不再带 `typ:"JWT"` 头 —— 自实现校验的客户端需放宽；官方 SDK 无需动作。② 撤销 opaque access token 会**连带撤销同 grant 下的 refresh token**。③ 撤销端点对 JWT access token 改返 `unsupported_token_type`（原先假成功） |
+| `docs/integration/identity-auth.md` | 同上登出 / token 生命周期描述；核对 Logto 版本号表述 |
+| `docs/integration/logto-account-api.md` | 核对全文与 1.43 实际行为；附带修正 §5 那段已知错误的 2FA toggle 描述（完整改造在阶段二） |
+| `docs/integration/callback-urls.md` | 核对上游统一 social callback URI 后描述是否仍准确 |
+| `docs/runbooks/logto-environment-isolation.md` | Logto 版本号 1.41.0 → **1.43.0** |
+
+### 收尾步骤
+
+1. 改 backend 仓对应 `docs/**.md`；若新增文档页，同步补 `manifest.ts` + `shared/i18n/locales/*.json`
+   的 `docs.title.<key>`（**全 locale，禁英文兑底**）+ `docs/README.md` 索引。
+2. `cd apps/admin-web && npm run docs:check`（有路由变更时跑 `docs:generate`）—— OpenAPI 陈旧会阻断构建。
+3. 按 `skills/admin-web-deploy`（3 个 Vite 入口）部署 intl；按 `skills/prod3-cn-deploy` 部署 cn。
+   ❗ 部署前必比对「线上 admin 版本 → 待发版本」全差量（MEMORY 已记录过事故）。
+4. **逐条验收线上页面**（不是看构建成功就算完）：
+   `m.ej-mobile.cn/docs/` 与 `m.nicematrix.com/docs/` 上述 5 页内容为新版；
+   `/docs/api/` 能正常渲染；强刷新确认无 CDN / 浏览器缓存残留。
+5. 全文搜一遍旧表述（如 `1.41`、`at_hash` 必须存在、旧登出语义），**确认零残留**。
+
+## 10. 开工前置动作项
 
 1. **后端**：确认 3 个 webhook 接收端幂等（1.43 起 5xx 会重试 3 次）。
 2. **客户端 agent 知会**（不阻塞升级，需同步）：

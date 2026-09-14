@@ -234,11 +234,46 @@ if (enabled === undefined) {
 **但 §2 的判定公式改造与 §3 的两条自作主张路径无论如何都要堵** ——
 那 11.5 万条隐式 2FA 与静默回填是真实行为，与开关是否保留完全无关。
 
-## 11. 文档同步
+## 11. 发布收尾：文档系统必须同步到最新
 
-- backend `docs/integration/logto-account-api.md` §5 现写着
-  "Logto v1.39 加入了统一 2FA toggle，可在 Account Center UI 一键开关 MFA" —— 与事实不符，必须修订。
-- backend `docs/integration/logto-sdk.md` §MFA：补充 `/mfa-settings` 与 `isEnabled`，
-  并明确"`/mfa-verifications` 列表非空 ≠ 两步验证已开启"。
-- `docs/mfa-deadlock-prevention.md`：补充隐式因子在新口径下的适用范围（仅限已绑因子用户）。
+> **硬性要求：开发完成后必须更新对外文档站，不得残留旧内容误导客户端开发。**
+> 本阶段直接改变了客户端读取状态的方式，文档陈旧的代价比阶段一更高 ——
+> 现有文档正在**主动教错**（指引客户端用因子列表判断开关状态）。
+
+文档站两个入口（两个 region 各一套，**都要更**）：
+
+| 入口 | 内容来源 | 发布方式 |
+|---|---|---|
+| `m.ej-mobile.cn/docs/`（cn）<br>`m.nicematrix.com/docs/`（intl） | backend 仓 `docs/**.md` 静态文件，清单由 `apps/admin-web/src/shared/docs/manifest.ts` 驱动 | 随 **admin-web 部署**落到 webroot |
+| `m.ej-mobile.cn/docs/api/`<br>`m.nicematrix.com/docs/api/` | `server.js` 的 `@api` 注释块 → `npm run docs:generate` → `docs/integration/openapi-docs.yaml` | 同上（`prebuild` 已强制跑 `docs:generate`） |
+
+### 必须改的页面与具体内容
+
+| 文档页 | 必须更新的内容 | 优先级 |
+|---|---|---|
+| `docs/integration/logto-sdk.md` §MFA | **当前指引客户端用 `GET /api/my-account/mfa-verifications` 显示两步验证状态 —— 新口径下这是错的，必须改掉**。新增 `GET /mfa-settings` 与 `isEnabled` / `hasUsableFactor` / `usableFactors` 说明；显式注明"因子列表非空 ≠ 两步验证已开启"，并附 §4 的迁移对照表 | **P0** |
+| `docs/integration/logto-account-api.md` | §5 现写着"Logto v1.39 加入了统一 2FA toggle，可在 Account Center UI 一键开关 MFA" —— 与事实不符，**删掉重写**；补全 `/mfa-settings` GET/PATCH 的新字段与语义 | **P0** |
+| `docs/integration/identity-auth.md` | 两步验证的产品口径：只有用户主动打开才算开启；添加验证方式 ≠ 开启；邮箱 / 手机不使开关可用（D2） | **P0** |
+| `docs/integration/logto-account-api.md`（因子章节） | 删除最后一个因子会把两步验证置为关 | P1 |
+| 若本阶段动了任何 backend 路由 | `@api` 注释块 + `npm run docs:generate` 重生 `/docs/api/` | 按实际 |
+
+### 本仓内部文档（不上文档站，一并改）
+
+- `docs/mfa-deadlock-prevention.md`：补充隐式因子在新口径下的适用范围（**仅限已绑因子用户**）。
 - `docs/mfa-state-accuracy-20260909.md`：标注"已由本方案接替"。
+- `logto-custom/README.md`：登记本阶段新增 / 修改的全部 override。
+
+### 收尾步骤
+
+1. 改 backend 仓对应 `docs/**.md`；若新增文档页，同步补 `manifest.ts` +
+   `shared/i18n/locales/*.json` 的 `docs.title.<key>`（**全 locale，禁英文兑底**）+ `docs/README.md` 索引。
+2. `cd apps/admin-web && npm run docs:check`（有路由变更时跑 `docs:generate`）—— OpenAPI 陈旧会阻断构建。
+3. 按 `skills/admin-web-deploy`（3 个 Vite 入口）部署 intl；按 `skills/prod3-cn-deploy` 部署 cn。
+   ❗ 部署前必比对「线上 admin 版本 → 待发版本」全差量（MEMORY 已记录过事故）。
+4. **逐条验收线上页面**（不是看构建成功就算完）：
+   `m.ej-mobile.cn/docs/` 与 `m.nicematrix.com/docs/` 上述页面内容为新版；
+   `/docs/api/` 能正常渲染；强刷新确认无 CDN / 浏览器缓存残留。
+5. **全文搜旧表述并确认零残留**，至少搜这几个关键词：
+   `mfa-verifications`（是否还被当作状态源）、`skipMfaOnSignIn`、`v1.39`、`一键开关`。
+6. 向各客户端 agent 发出交接说明（附 §4 迁移对照表 + 文档站链接），
+   **跨仓代码由各自 agent 执行，本 agent 不动客户端仓库**。
