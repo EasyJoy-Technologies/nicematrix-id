@@ -28,13 +28,21 @@
  *     decision logic - unaffected.
  *
  * SCOPE
- * Stage 1 (upgrade) only. The explicit-opt-in redesign - including the separate,
- * pre-existing `assertMfaEnabledOrSuggest` -> `markMfaEnabled()` silent back-fill path -
- * is stage 2: see docs/mfa-explicit-optin-plan.md. This override is expected to be retired
- * or rewritten there once `user-mfa-state` owns the judgement.
+ * Stage 1 (upgrade neutrality). Stage 2 (`docs/mfa-explicit-optin-plan.md`) keeps all four
+ * removals and adds the last-factor write-back below; the separate, pre-existing
+ * `assertMfaEnabledOrSuggest` -> `markMfaEnabled()` silent back-fill is dealt with in
+ * `routes/experience/classes/mfa.ts`.
  *
- * On upstream sync: re-copy this file from upstream and re-remove the same four
- * `logtoConfig: buildUpdatedUserLogtoConfig(user, { mfa: { enabled: true } })` writes.
+ * STAGE 2 ADDITION (2026-09-14) - DELETE /mfa-verifications/:id
+ * Deleting the last factor that could actually serve a second verification step now writes
+ * `mfa.enabled = false`. Without it a user could be left with `enabled = true` and nothing to
+ * verify against: the toggle would read "on" while sign-in could not enforce anything. This is
+ * the one place where the system writes the flag on the user's behalf, and it only ever writes
+ * "off" - it can never turn two-step verification on for anyone.
+ *
+ * On upstream sync: re-copy this file from upstream, re-remove the same four
+ * `logtoConfig: buildUpdatedUserLogtoConfig(user, { mfa: { enabled: true } })` writes, and
+ * re-apply the last-factor write-back in the DELETE route.
  */
 /* eslint-disable max-lines */
 import { UserScope } from '@logto/core-kit';
@@ -48,9 +56,12 @@ import { generateStandardId } from '@logto/shared';
 import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
-// [NiceMatrix override] upstream also imports `conditional` from '@silverhand/essentials'
-// and `buildUpdatedUserLogtoConfig` from '#src/libraries/user-logto-config.js'; both were
-// used solely by the four removed `mfa.enabled` auto-writes.
+// [NiceMatrix override] upstream also imports `conditional` from '@silverhand/essentials';
+// it was used solely by the four removed `mfa.enabled` auto-writes.
+// `buildUpdatedUserLogtoConfig` is kept, but now serves only the last-factor "off" write-back.
+import { buildUpdatedUserLogtoConfig } from '#src/libraries/user-logto-config.js';
+// [NiceMatrix] shared explicit-opt-in judgement, see `libraries/user-mfa-state.ts`.
+import { getUsableMfaFactors } from '#src/libraries/user-mfa-state.js';
 import {
   generateBackupCodes,
   validateBackupCodes,
@@ -521,8 +532,19 @@ export default function mfaVerificationsRoutes<T extends UserRouter>(
       const mfaVerifications = user.mfaVerifications.filter(
         (mfaVerification) => mfaVerification.id !== ctx.guard.params.verificationId
       );
+
+      // [NiceMatrix override] if this removed the last factor that could serve a second
+      // verification step, persist `mfa.enabled = false` so the stored flag cannot claim
+      // two-step verification is on while nothing is left to verify with. See the file header.
+      const { mfa } = await findDefaultSignInExperience();
+      const hasUsableFactorLeft =
+        getUsableMfaFactors(mfa, { ...user, mfaVerifications }).length > 0;
+
       const updatedUser = await updateUserById(userId, {
         mfaVerifications,
+        ...(hasUsableFactorLeft
+          ? {}
+          : { logtoConfig: buildUpdatedUserLogtoConfig(user, { mfa: { enabled: false } }) }),
       });
 
       ctx.appendDataHookContext('User.Data.Updated', { user: updatedUser });

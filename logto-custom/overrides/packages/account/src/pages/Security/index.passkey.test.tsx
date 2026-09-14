@@ -1,0 +1,233 @@
+import {
+  AccountCenterControlValue,
+  MfaFactor,
+  MfaPolicy,
+  type UserMfaVerificationResponse,
+} from '@logto/schemas';
+import { waitFor } from '@testing-library/react';
+import { Route, Routes } from 'react-router-dom';
+
+import renderWithPageContext, {
+  mockAccountCenterSettings,
+  mockSignInExperienceSettings,
+} from '@ac/__mocks__/RenderWithPageContext';
+import { securityRoute, verifiedActionRoute } from '@ac/constants/routes';
+
+import { getLogtoConfig, updateLogtoConfig } from '../../apis/logto-config';
+import { getMfaSettings, getMfaVerifications, updateMfaSettings } from '../../apis/mfa';
+
+import Security from '.';
+
+const mockGetAccessToken = jest.fn().mockResolvedValue('access-token');
+
+jest.mock('@logto/react', () => ({
+  useLogto: () => ({
+    getAccessToken: mockGetAccessToken,
+  }),
+}));
+
+jest.mock('../../apis/mfa', () => ({
+  getMfaSettings: jest.fn(),
+  getMfaVerifications: jest.fn(),
+  updateMfaSettings: jest.fn(),
+}));
+
+jest.mock('../../apis/logto-config', () => ({
+  getLogtoConfig: jest.fn(),
+  updateLogtoConfig: jest.fn(),
+}));
+
+const mockGetMfaSettings = getMfaSettings as jest.MockedFunction<typeof getMfaSettings>;
+const mockGetMfaVerifications = getMfaVerifications as jest.MockedFunction<
+  typeof getMfaVerifications
+>;
+const mockUpdateMfaSettings = updateMfaSettings as jest.MockedFunction<typeof updateMfaSettings>;
+const mockGetLogtoConfig = getLogtoConfig as jest.MockedFunction<typeof getLogtoConfig>;
+const mockUpdateLogtoConfig = updateLogtoConfig as jest.MockedFunction<typeof updateLogtoConfig>;
+
+/**
+ * [NiceMatrix override] `/mfa-settings` now returns the resolved two-step verification state
+ * instead of the raw opt-out flag. See `docs/mfa-explicit-optin-plan.md` §4.
+ */
+const mfaSettings = ({
+  isEnabled = false,
+  hasUsableFactor = isEnabled,
+  usableFactors = hasUsableFactor ? [MfaFactor.TOTP] : [],
+}: {
+  isEnabled?: boolean;
+  hasUsableFactor?: boolean;
+  usableFactors?: MfaFactor[];
+} = {}) => ({
+  skipMfaOnSignIn: !isEnabled,
+  isEnabled,
+  hasUsableFactor,
+  usableFactors,
+});
+
+const mockLogtoConfigResponse = {
+  mfa: { skipped: false, skipMfaOnSignIn: true },
+  passkeySignIn: { skipped: false },
+};
+
+const renderSecurity = ({
+  factors,
+  mfaVerifications = [],
+}: {
+  factors: MfaFactor[];
+  mfaVerifications?: UserMfaVerificationResponse;
+}) => {
+  mockGetMfaVerifications.mockResolvedValue(mfaVerifications);
+
+  return renderWithPageContext(
+    <Routes>
+      <Route path={securityRoute} element={<Security />} />
+      <Route path={verifiedActionRoute} element={<div>verified action page</div>} />
+    </Routes>,
+    {
+      initialEntries: [securityRoute],
+      future: { v7_relativeSplatPath: true, v7_startTransition: true },
+    },
+    {
+      pageContext: {
+        accountCenterSettings: {
+          ...mockAccountCenterSettings,
+          fields: {
+            username: AccountCenterControlValue.Off,
+            email: AccountCenterControlValue.Off,
+            phone: AccountCenterControlValue.Off,
+            password: AccountCenterControlValue.Off,
+            social: AccountCenterControlValue.Off,
+            mfa: AccountCenterControlValue.Edit,
+          },
+          deleteAccountUrl: null,
+        },
+        experienceSettings: {
+          ...mockSignInExperienceSettings,
+          socialConnectors: [],
+          mfa: { policy: MfaPolicy.UserControlled, factors },
+          passkeySignIn: { enabled: true },
+        },
+      },
+    }
+  );
+};
+
+describe('<Security /> with passkey sign-in enabled', () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockGetAccessToken.mockResolvedValue('access-token');
+    mockGetMfaSettings.mockResolvedValue(mfaSettings());
+    mockUpdateMfaSettings.mockResolvedValue(mfaSettings());
+    mockGetLogtoConfig.mockResolvedValue(mockLogtoConfigResponse);
+    mockUpdateLogtoConfig.mockResolvedValue(mockLogtoConfigResponse);
+    window.sessionStorage.clear();
+  });
+
+  it('shows a dedicated passkey section and no MFA section when only passkey sign-in is enabled', async () => {
+    const { getAllByText, queryByText } = renderSecurity({ factors: [] });
+
+    await waitFor(() => {
+      expect(queryByText('account_center.security.not_configured')).not.toBeNull();
+    });
+
+    // The passkey section renders the label as both the section title and the row title.
+    expect(getAllByText('account_center.security.passkeys')).toHaveLength(2);
+    expect(queryByText('account_center.security.two_step_verification')).toBeNull();
+  });
+
+  it('does not render an empty MFA section when WebAuthn is the only enabled factor', async () => {
+    const { getAllByText, queryByText } = renderSecurity({
+      factors: [MfaFactor.WebAuthn],
+      mfaVerifications: [
+        {
+          id: 'passkey-verification-id',
+          createdAt: '2026-05-13T00:00:00.000Z',
+          type: MfaFactor.WebAuthn,
+        },
+      ],
+    });
+
+    // Wait until the passkey section finishes loading (section title + row title).
+    await waitFor(() => {
+      expect(getAllByText('account_center.security.passkeys')).toHaveLength(2);
+    });
+
+    // WebAuthn is the only factor and is surfaced as a passkey, so there is no real second factor
+    // to manage: the Two-step verification section must not render a toggle-only card.
+    expect(queryByText('account_center.security.two_step_verification')).toBeNull();
+  });
+
+  it('does not duplicate passkey in the MFA section when both WebAuthn factor and passkey sign-in are enabled', async () => {
+    const { getAllByText, queryByText } = renderSecurity({
+      factors: [MfaFactor.TOTP, MfaFactor.WebAuthn],
+      mfaVerifications: [
+        {
+          id: 'passkey-verification-id',
+          createdAt: '2026-05-13T00:00:00.000Z',
+          type: MfaFactor.WebAuthn,
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(queryByText('account_center.security.authenticator_app')).not.toBeNull();
+    });
+
+    // Passkey appears only in its own section (section title + row title), never in the MFA section.
+    await waitFor(() => {
+      expect(getAllByText('account_center.security.passkeys')).toHaveLength(2);
+    });
+    // The MFA section is still present alongside its non-passkey factors.
+    expect(getAllByText('account_center.security.two_step_verification').length).toBeGreaterThan(0);
+
+    // Both the passkey section and the MFA section read from a single shared request.
+    expect(mockGetMfaVerifications).toHaveBeenCalledTimes(1);
+  });
+
+  /*
+   * [NiceMatrix override] the warning is no longer derived in the browser from the factor list.
+   * The server decides what counts as a usable second factor and reports `hasUsableFactor`, so
+   * the notification and the disabled switch always agree with what sign-in would really do.
+   */
+  it('warns to add a second verification method when the server reports no usable factor', async () => {
+    mockGetMfaSettings.mockResolvedValue(mfaSettings({ hasUsableFactor: false }));
+    const { queryByText } = renderSecurity({
+      factors: [MfaFactor.TOTP, MfaFactor.WebAuthn],
+      mfaVerifications: [
+        {
+          id: 'passkey-verification-id',
+          createdAt: '2026-05-13T00:00:00.000Z',
+          type: MfaFactor.WebAuthn,
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(queryByText('account_center.security.no_verification_method_warning')).not.toBeNull();
+    });
+  });
+
+  it('does not warn when a non-passkey second factor is configured alongside the passkey', async () => {
+    mockGetMfaSettings.mockResolvedValue(mfaSettings({ isEnabled: true }));
+    const { queryByText } = renderSecurity({
+      factors: [MfaFactor.TOTP, MfaFactor.WebAuthn],
+      mfaVerifications: [
+        {
+          id: 'passkey-verification-id',
+          createdAt: '2026-05-13T00:00:00.000Z',
+          type: MfaFactor.WebAuthn,
+        },
+        {
+          id: 'totp-verification-id',
+          createdAt: '2026-05-13T00:00:00.000Z',
+          type: MfaFactor.TOTP,
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(queryByText('account_center.security.authenticator_app')).not.toBeNull();
+    });
+    expect(queryByText('account_center.security.no_verification_method_warning')).toBeNull();
+  });
+});

@@ -14,6 +14,37 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Two-step verification = explicit opt-in (2026-09-14, stage 2)
+
+Plan: `docs/mfa-explicit-optin-plan.md` · changelog:
+`changelog/logto-mfa-explicit-optin-20260914.md`
+
+**Why**: upstream answers "is two-step verification on?" in three places that disagreed with each
+other, and all three counted a user's `primaryEmail` / `primaryPhone` as an *implicit* second
+factor. In production that meant 143,375 accounts saw an "on" switch they never set, ~115,000 of
+them would really have been challenged for an SMS/email code on the hosted sign-in page, and one
+hosted sign-in was enough for Logto to silently persist `mfa.enabled = true` for them forever.
+NiceMatrix rule: the system never turns two-step verification on for a user.
+
+**Shape**: one new NiceMatrix-owned module decides, everybody else consumes it.
+
+| File | Kind | Change |
+|---|---|---|
+| `packages/core/src/libraries/user-mfa-state.ts` | **new (ours)** | `isEnabled = enabled === true ∧ skipMfaOnSignIn !== true ∧ bound factors ≠ ∅`; also exports `usableFactors` / `hasUsableFactor`. No upstream counterpart → zero upgrade maintenance. |
+| `core/routes/experience/classes/libraries/mfa-validator.ts` | override | `isMfaRequired` consumes the module. Adaptive-MFA and mandatory-policy branches left byte-equivalent to upstream. |
+| `core/routes/experience/classes/mfa.ts` | override | drops the silent `mfa.enabled = true` back-fill; skips the "set up two-step verification" suggestion for users who switched it off. |
+| `core/routes/account/mfa-verifications.ts` | override (extended) | deleting the last usable factor writes `mfa.enabled = false`. |
+| `core/routes/account/index.ts` | override (extended) | `GET/PATCH /mfa-settings` gain `isEnabled` / `hasUsableFactor` / `usableFactors`; `PATCH` accepts `isEnabled`, which writes both underlying flags at once. |
+| `schemas/src/types/user-logto-config.ts` | override | the three response fields. |
+| `account/src/pages/Security/MfaSection/index.tsx` | **new override** | switch binds to `isEnabled`, disabled with no bound factor (existing `no_verification_method_warning` phrase — no new i18n key). |
+| `account/src/apis/mfa.ts` | override | `updateMfaSettings` payload accepts `isEnabled`. |
+| `account/src/pages/Security/index.test.tsx`, `index.passkey.test.tsx` | override | upstream scenarios updated to the new contract + a new "disabled with no factor" case. 38 tests green. |
+
+**Deliberately unchanged**: the sign-in suggestion page still uses upstream's implicit-inclusive
+factor list (so the ~143,000 email/phone-only users gain no new prompt); email / phone remain
+fallback channels inside the MFA challenge (`docs/mfa-deadlock-prevention.md`); mandatory MFA
+policies still ignore per-user opt-out; no stored user data was migrated or back-filled.
+
 ### `packages/core/src/routes/account/mfa-verifications.ts` — MFA-neutral upgrade (2026-09-14)
 
 **Why**: upstream 1.42 (`d91696c70`) made the Account API write `logtoConfig.mfa.enabled = true`

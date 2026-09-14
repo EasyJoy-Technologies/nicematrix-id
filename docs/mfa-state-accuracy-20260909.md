@@ -1,5 +1,11 @@
 # 两步验证（MFA）状态显示准确性 — 调研与待决策
 
+> ⚠️ **已由后续方案接替（2026-09-14）。** 本文保留作调研与根因记录，不再是现行口径。
+> 现行口径与实施：`docs/mfa-explicit-optin-plan.md`（方案，决策 B1 / D2）+
+> `changelog/logto-mfa-explicit-optin-20260914.md`（实施记录）。
+> 本文 §0 的四条方向约束全部被接替方案满足；§2 指出的「三处判断各自漂移」根因，已由新增的
+> `core/src/libraries/user-mfa-state.ts` 单一事实源消除。
+
 > 状态：**仅调研，未做任何代码 / 配置 / 数据改动**。2026-09-09。
 > 触发：`id.nicematrix.com/account` 上账号 `systemtest` 未添加任何第二验证方式，
 > 页面「两步验证」开关却显示为**开**。

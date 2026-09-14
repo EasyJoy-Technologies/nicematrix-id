@@ -1,3 +1,22 @@
+/*
+ * [NiceMatrix override] vs upstream packages/core/src/routes/account/index.ts (v1.43.0).
+ * Two unrelated changes, both marked inline with `[NiceMatrix]`:
+ *
+ * 1. Mounts our own account routes (avatar upload/delete, self-service deletion request).
+ *
+ * 2. `GET` / `PATCH /api/my-account/mfa-settings` now speak the explicit-opt-in model
+ *    (`docs/mfa-explicit-optin-plan.md` §4). GET returns `isEnabled` / `hasUsableFactor` /
+ *    `usableFactors` next to the legacy `skipMfaOnSignIn`, all computed by
+ *    `libraries/user-mfa-state.ts` - the same module sign-in enforcement uses, so the state we
+ *    report is the state that will actually be applied. PATCH accepts `isEnabled`, the single
+ *    authoritative switch: on writes `enabled = true` + `skipMfaOnSignIn = false`, off writes
+ *    `enabled = false` + `skipMfaOnSignIn = true`.
+ *
+ *    Strictly additive: both parameters are optional and a legacy `{ skipMfaOnSignIn }` body
+ *    behaves exactly as it did upstream - same write, same response shape plus the new fields.
+ *
+ * On upstream sync: re-copy this file and re-apply both changes.
+ */
 import { usernameRegEx, UserScope } from '@logto/core-kit';
 import {
   userProfileResponseGuard,
@@ -13,6 +32,8 @@ import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import { buildUserPasswordPayloadFromPassword } from '#src/libraries/user.utils.js';
+// [NiceMatrix] shared explicit-opt-in judgement, see `libraries/user-mfa-state.ts`.
+import { getUserMfaState } from '#src/libraries/user-mfa-state.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
@@ -245,11 +266,16 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
         new RequestError({ code: 'account_center.field_not_enabled', status: 400 })
       );
 
-      const user = await findUserById(userId);
+      // [NiceMatrix] resolve the real state instead of echoing a single raw flag.
+      const [user, { mfa }] = await Promise.all([
+        findUserById(userId),
+        findDefaultSignInExperience(),
+      ]);
       const mfaData = userMfaDataGuard.safeParse(user.logtoConfig[userMfaDataKey]);
       const skipMfaOnSignIn = mfaData.success ? (mfaData.data.skipMfaOnSignIn ?? false) : false;
+      const { isEnabled, hasUsableFactor, usableFactors } = getUserMfaState(mfa, user);
 
-      ctx.body = { skipMfaOnSignIn };
+      ctx.body = { skipMfaOnSignIn, isEnabled, hasUsableFactor, usableFactors };
 
       return next();
     }
@@ -258,9 +284,18 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
   router.patch(
     `${accountApiPrefix}/mfa-settings`,
     koaGuard({
-      body: z.object({
-        skipMfaOnSignIn: z.boolean(),
-      }),
+      // [NiceMatrix] `isEnabled` is the authoritative switch; `skipMfaOnSignIn` stays accepted
+      // for older clients. Both optional, at least one required.
+      body: z
+        .object({
+          skipMfaOnSignIn: z.boolean().optional(),
+          isEnabled: z.boolean().optional(),
+        })
+        .refine(
+          ({ skipMfaOnSignIn, isEnabled }) =>
+            skipMfaOnSignIn !== undefined || isEnabled !== undefined,
+          { message: 'Either `isEnabled` or `skipMfaOnSignIn` must be provided.' }
+        ),
       response: userMfaSettingsResponseGuard,
       status: [200, 400, 401, 403],
     }),
@@ -277,29 +312,56 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
       );
       await assertFirstPartyClient(queries, clientId);
 
-      const { skipMfaOnSignIn } = ctx.guard.body;
+      const { skipMfaOnSignIn, isEnabled } = ctx.guard.body;
       const { fields } = ctx.accountCenter;
       assertThat(
         fields.mfa === AccountCenterControlValue.Edit,
         new RequestError({ code: 'account_center.field_not_editable', status: 400 })
       );
 
-      const user = await findUserById(userId);
+      const [user, { mfa }] = await Promise.all([
+        findUserById(userId),
+        findDefaultSignInExperience(),
+      ]);
       const existingMfaData = userMfaDataGuard.safeParse(user.logtoConfig[userMfaDataKey]);
+
+      // [NiceMatrix] turning it on is only meaningful with a factor to verify against;
+      // otherwise the switch would read "on" while sign-in could never enforce anything.
+      // The Account Center already disables the toggle in that state, so this is a guard
+      // against direct API use rather than something a user can walk into.
+      if (isEnabled === true) {
+        assertThat(
+          getUserMfaState(mfa, user).hasUsableFactor,
+          new RequestError({ code: 'user.missing_mfa', status: 400 })
+        );
+      }
+
+      // [NiceMatrix] `isEnabled` owns both flags so the two can never contradict each other.
+      // Without it, fall back to the upstream single-flag write for older clients.
+      const mfaDataUpdate =
+        isEnabled === undefined
+          ? { skipMfaOnSignIn: skipMfaOnSignIn === true }
+          : { enabled: isEnabled, skipMfaOnSignIn: !isEnabled };
 
       const updatedUser = await updateUserById(userId, {
         logtoConfig: {
           ...user.logtoConfig,
           [userMfaDataKey]: {
             ...(existingMfaData.success ? existingMfaData.data : {}),
-            skipMfaOnSignIn,
+            ...mfaDataUpdate,
           },
         },
       });
 
       ctx.appendDataHookContext('User.Data.Updated', { user: updatedUser });
 
-      ctx.body = { skipMfaOnSignIn };
+      const updatedState = getUserMfaState(mfa, updatedUser);
+      ctx.body = {
+        skipMfaOnSignIn: mfaDataUpdate.skipMfaOnSignIn,
+        isEnabled: updatedState.isEnabled,
+        hasUsableFactor: updatedState.hasUsableFactor,
+        usableFactors: updatedState.usableFactors,
+      };
 
       return next();
     }

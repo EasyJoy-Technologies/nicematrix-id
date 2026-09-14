@@ -3,6 +3,19 @@
 > 目标：避免用户只绑定一个 MFA factor 后，在该 factor 不可用时（设备丢失、浏览器
 > 清空、passkey RP ID 改变、换设备等）**完全无法登录**。
 
+> **适用范围说明（2026-09-14 阶段二后补充，本包本身未改动）**
+>
+> 阶段二「显式开启」改造（`docs/mfa-explicit-optin-plan.md`）后，隐式 Email / Phone 因子的作用
+> 边界变得更窄，但本包的三层防御全部保留、逐字未改：
+>
+> - **仍然有效**：一旦进入 MFA 挑战页，隐式邮箱 / 手机仍是可用的备用通道（SIE 配置不变，
+>   `getAllUserEnabledMfaVerifications()` 与 `SwitchMfaFactorsLink` override 均未动）。
+> - **范围收窄**：挑战现在只会发生在**确有已绑因子**（TOTP / 备份码 / passkey）的用户身上，
+>   因此本包针对的正是这批用户。只有邮箱 / 手机而从未绑过因子的用户不再被强制二次验证，
+>   也就不存在“死锁”场景。
+> - **隐式因子不再使开关可用**（决策 D2）：它们是备用通道，不是“用户选择的第二因子”，
+>   因此不计入 `usableFactors`。
+
 ## 背景
 
 Logto 上游在 `/mfa-verification` 流程下判断"可用 factor"仅看 `mfaVerifications`
