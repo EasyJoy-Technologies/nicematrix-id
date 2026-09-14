@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Stage 4 smoke item 1: full hosted-page sign-in (incl. the tenant's mandatory MFA step)
-# and hosted registration, end to end through /oidc/auth -> Experience API -> /oidc/token.
+# Stage 4 smoke item 1: full hosted-page sign-in and hosted registration, end to end through
+# /oidc/auth -> Experience API -> /oidc/token.
+#
+# 2026-09-14 (stage 2, explicit opt-in): this script used to expect an MFA challenge here.
+# It no longer happens, on purpose. The factor below is provisioned by an ADMIN through the
+# Management API, which is not the user opting in, so `logto_config.mfa.enabled` stays unset
+# and sign-in must not challenge. See docs/mfa-explicit-optin-plan.md; the enforced path
+# (user switches it on -> sign-in really challenges) is covered by smoke-mfa-explicit-optin.sh.
 set -uo pipefail
 
 ID="https://id-staging.nicematrix.com"
@@ -56,7 +62,7 @@ PY
 )"
 
 echo
-echo "== hosted SIGN-IN (password + mandatory TOTP MFA) =="
+echo "== hosted SIGN-IN (password; no MFA challenge without an opt-in) =="
 rm -f "$CJ"
 C=$(curl -sS -c $CJ -b $CJ -o /dev/null -w '%{http_code}' \
   "$ID/oidc/auth?client_id=$SPA&redirect_uri=$REDIR&response_type=code&scope=openid%20profile%20offline_access&state=st&code_challenge=$CHALLENGE&code_challenge_method=S256&prompt=consent")
@@ -68,12 +74,15 @@ VID=$(curl -sS -c $CJ -b $CJ -X POST "$ID/api/experience/verification/password" 
 curl -sS -c $CJ -b $CJ -o /dev/null -X POST "$ID/api/experience/identification" -H 'Content-Type: application/json' \
   -d "{\"interactionEvent\":\"SignIn\",\"verificationId\":\"$VID\"}"
 S1=$(curl -sS -c $CJ -b $CJ -o /dev/null -w '%{http_code}' -X POST "$ID/api/experience/submit" -H 'Content-Type: application/json')
-[ "$S1" = "403" ] && ok "submit correctly demands MFA first (403)" || echo "  note - submit returned $S1 (tenant may not require MFA)"
-
 if [ "$S1" = "403" ]; then
+  # A challenge here would mean a factor an admin provisioned is being treated as the user
+  # having switched two-step verification on - the exact thing stage 2 removed.
+  no "explicit opt-in regression: challenged for MFA the user never opted into" "submit returned 403"
   MV=$(curl -sS -c $CJ -b $CJ -X POST "$ID/api/experience/verification/totp/verify" -H 'Content-Type: application/json' \
     -d "{\"code\":\"$(totp "$SECRET")\"}" | jqr verificationId)
-  [ -n "$MV" ] && ok "TOTP MFA verified" || no "TOTP MFA" "empty verificationId"
+  [ -n "$MV" ] && ok "TOTP MFA verified (flow continued)" || no "TOTP MFA" "empty verificationId"
+else
+  ok "no MFA challenge for an admin-provisioned factor (explicit opt-in rule, submit=$S1)"
 fi
 
 # The staging tenant chains further post-MFA policy steps; walk each one.
