@@ -14,6 +14,11 @@
  *
  * Access control:
  *   - requires OIDC access token with `profile` scope
+ *   - requires a FIRST-PARTY client (upstream 1.43 `assertFirstPartyClient`, applied to
+ *     every upstream Account API write; these two writes are ours, so we apply it here
+ *     too). An third-party application carries `openid` unconditionally and an admin may
+ *     grant it `profile` to READ the avatar — that must never imply permission to
+ *     REPLACE it. Fails closed on an unresolvable client (e.g. a CIMD identifier URL).
  *   - requires account-center field control `avatar === Edit`
  *   - storage provider must be configured (same as management user-assets route)
  */
@@ -35,6 +40,7 @@ import { object } from 'zod';
 import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import SystemContext from '#src/tenants/SystemContext.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 import { getConsoleLogFromContext } from '#src/utils/console.js';
 import { buildUploadFile } from '#src/utils/storage/index.js';
@@ -58,10 +64,10 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
         file: uploadFileGuard.array().min(1),
       }),
       response: userProfileResponseGuard.partial(),
-      status: [200, 400, 401, 422, 500],
+      status: [200, 400, 401, 403, 422, 500],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
 
       assertThat(
@@ -69,6 +75,7 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
         'account_center.field_not_editable'
       );
       assertThat(scopes.has(UserScope.Profile), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       const { file: bodyFiles } = ctx.guard.files;
       const file = bodyFiles[0];
@@ -120,10 +127,10 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
     `${accountApiPrefix}/avatar`,
     koaGuard({
       response: userProfileResponseGuard.partial(),
-      status: [200, 400, 401, 500],
+      status: [200, 400, 401, 403, 500],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       const { fields } = ctx.accountCenter;
 
       assertThat(
@@ -131,6 +138,7 @@ export default function avatarRoutes<T extends UserRouter>(...args: RouterInitAr
         'account_center.field_not_editable'
       );
       assertThat(scopes.has(UserScope.Profile), 'auth.unauthorized');
+      await assertFirstPartyClient(queries, clientId);
 
       const updatedUser = await updateUserById(userId, { avatar: null });
       ctx.appendDataHookContext('User.Data.Updated', { user: updatedUser });

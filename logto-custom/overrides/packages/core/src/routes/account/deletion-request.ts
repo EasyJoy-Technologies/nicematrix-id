@@ -45,6 +45,7 @@ import { z } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
 import koaGuard from '#src/middleware/koa-guard.js';
+import { assertFirstPartyClient } from '#src/utils/assert-first-party-client.js';
 import assertThat from '#src/utils/assert-that.js';
 
 import type { UserRouter, RouterInitArgs } from '../types.js';
@@ -128,6 +129,15 @@ export default function deletionRequestRoutes<T extends UserRouter>(
 ) {
   const pool = tenant.envSet.pool;
   const tenantId = tenant.id;
+  const { queries } = tenant;
+
+  // Upstream 1.43 guards every Account API WRITE with `assertFirstPartyClient`: an third-party
+  // application always carries `openid`, and an admin granting it `profile` only means
+  // "this app may read the profile" — never "this app may schedule the account for
+  // deletion". The three write routes below are ours, so they carry the same assertion
+  // (the GET stays open: it is a read of the caller's own pending request). The helper
+  // fails closed, so a client that cannot be resolved — including a CIMD client
+  // identifier URL — is rejected as well.
 
   // ── GET current open request ─────────────────────────────────────────────
   router.get(
@@ -182,15 +192,16 @@ export default function deletionRequestRoutes<T extends UserRouter>(
           scheduled_at: z.string(),
         }),
       ]),
-      status: [200, 401, 409],
+      status: [200, 401, 403, 409],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes, identityVerified } = ctx.auth;
+      const { id: userId, scopes, identityVerified, clientId } = ctx.auth;
 
       assertThat(
         scopes.has(UserScope.Profile),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
 
       // Require the caller to have passed re-verification (password / MFA /
       // email code) within this verification record. This is the same pattern
@@ -287,14 +298,15 @@ export default function deletionRequestRoutes<T extends UserRouter>(
         // ISO-8601 string (see DeletionRequestRow note); matches client contract.
         scheduled_at: z.string(),
       }),
-      status: [200, 400, 401, 404],
+      status: [200, 400, 401, 403, 404],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       assertThat(
         scopes.has(UserScope.Profile),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
 
       const { confirmation_token: token } = ctx.guard.body;
 
@@ -353,14 +365,15 @@ export default function deletionRequestRoutes<T extends UserRouter>(
   router.delete(
     `${accountApiPrefix}/deletion-request`,
     koaGuard({
-      status: [204, 401],
+      status: [204, 401, 403],
     }),
     async (ctx, next) => {
-      const { id: userId, scopes } = ctx.auth;
+      const { id: userId, scopes, clientId } = ctx.auth;
       assertThat(
         scopes.has(UserScope.Profile),
         new RequestError({ code: 'auth.unauthorized', status: 401 })
       );
+      await assertFirstPartyClient(queries, clientId);
 
       await pool.query(sql`
         update user_deletion_requests
