@@ -204,6 +204,25 @@ if (enabled === undefined) {
 | 展示 | `schemas/src/types/*`（响应 guard） | override，新增三个响应字段 |
 | UI | `account/src/pages/Security/MfaSection/index.tsx` | **新增 override**（目前无此 override） |
 
+### 8.1 搭车项：给我方 Account 写路由补 `assertFirstPartyClient`
+
+升级复盘遗留项 #2（`upgrade-1.43/POST-UPGRADE-REVIEW.md` §4）。1.43 给**所有上游 Account API
+写操作**加了 first-party 断言（`core/src/utils/assert-first-party-client.ts`：token 属于第三方
+应用则 403），我方两个自写 override 没有：
+
+| 文件 | 写操作 |
+|---|---|
+| `core/routes/account/avatar.ts` | `POST` / `DELETE /api/my-account/avatar` |
+| `core/routes/account/deletion-request.ts` | `POST` / `POST …/confirm` / `DELETE /api/my-account/deletion-request` |
+
+- **今天是纯 no-op**：prod-1 全部 22 个 application `is_third_party=false`，断言不可能命中。
+  因此阶段一按「升级不改语义」未做，也**不值得为它单独重编译镜像 + 走一次 prod 部署**。
+- **搭本阶段的车**：阶段二本来就要重出镜像，边际成本≈0，且补上后未来真接入第三方应用时
+  自动拦住「第三方 token 改头像 / 发起销号」。
+- 若阶段二被推迟，另一个触发点是**后台创建第三方应用**（勾 `is_third_party`）——那之前必须先补。
+- 验证方式：prod 无第三方应用，故在 staging 临时建一个 `is_third_party=true` 应用取 token，
+  断言四个端点返回 403，验完即删；第一方 token 路径回归 200。
+
 - **不新增 i18n key**；若最终确需新增，按 `GLOBAL_I18N_STANDARD` 一次补齐全部 locale，禁止英文兜底。
 - **不改 SIE 配置**、**不改登录方式**（`signIn.methods[email].verificationCode` 保持 `false`）。
 - **不动 Package A 三层死锁防御**（`SwitchMfaFactorsLink` override、绑 passkey 后强制备份码、
