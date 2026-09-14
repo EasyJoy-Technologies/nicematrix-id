@@ -128,7 +128,7 @@ prod-1 的 5 个 hook 的 URL 与 signing key **完全未动**（已逐行比对
 | # | 项 | 说明 |
 |---|---|---|
 | 1 | ~~PostSignIn 的 `login` 遥测写入时机~~ **已修（backend v1.2.662，待随下次发版部署）** | `admin-core/webhook.js` 里 `emitActivityEvent({eventType:'login'})` 是裸 INSERT，且发生在 `applyDeviceLoginControl()` **之前**。若后者抛错导致 500，1.43 的重试会多写一行 `login` 事件。**当前无实际影响**（所有消费方都做去重/聚合，没有任何"登录次数"原始计数），但把这行挪到 `applyDeviceLoginControl()` 返回之后即可彻底关掉这个窗口 —— 与同文件里 `device_evicted` 已遵守的「事务提交后再 emit」规则一致。改动量 1 条语句。 |
-| 2 | 我方自定义 Account 路由补 `assertFirstPartyClient` **已定档：搭阶段二镜像重编译一起做，见 `docs/mfa-explicit-optin-plan.md` §8.1** | 1.43 给所有上游 Account API 写操作加了 first-party 断言；我们自己的 `avatar.ts` / `deletion-request.ts` 没有。**今天是纯 no-op**（prod-1 全部 22 个 application `is_third_party=false`），但补上可与上游安全姿态一致、并在未来真有第三方应用时自动拦住。本阶段按「升级不改语义」原则未做。 |
+| 2 | ~~我方自定义 Account 路由补 `assertFirstPartyClient`~~ **代码已合（`e561971`）+ 镜像已构建核对，待 staging 验证与 prod-1 部署；详 `docs/mfa-explicit-optin-plan.md` §8.1** | 1.43 给所有上游 Account API 写操作加了 first-party 断言；我们自己的 `avatar.ts` / `deletion-request.ts` 没有。**今天是纯 no-op**（prod-1 全部 22 个 application `is_third_party=false`），但补上可与上游安全姿态一致、并在未来真有第三方应用时自动拦住。本阶段按「升级不改语义」原则未做。 |
 | 3 | Trusted devices（1.43 新功能） | 租户级开关默认关，本次**未启用**。Account Center 新增了 `trustedDevice` 控制位，`UserScope.TrustedDevices` 已随上游 App.tsx 进入请求 scope（开关关着时完全惰性）。 |
 | 4 | CIMD / 动态应用（1.43 新功能） | 默认关，**保持关闭**。注意：一旦设置 `SSRF_ALLOWED_ADDRESSES` 会连带禁用 CIMD —— 不要为了让 webhook 指向私网而设它。 |
 | 5 | 标识符锁定计数口径变化 | 1.43 改按规范化标识符归集，部署后既有 Sentinel 锁定可能提前解除（最多提前一个 `lockoutDuration`）。无需动作。 |

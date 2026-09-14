@@ -204,7 +204,14 @@ if (enabled === undefined) {
 | 展示 | `schemas/src/types/*`（响应 guard） | override，新增三个响应字段 |
 | UI | `account/src/pages/Security/MfaSection/index.tsx` | **新增 override**（目前无此 override） |
 
-### 8.1 搭车项：给我方 Account 写路由补 `assertFirstPartyClient`
+### 8.1 ~~搭车项~~：我方 Account 写路由的 `assertFirstPartyClient` —— **已提前完成（2026-09-14）**
+
+> 不再搭阶段二的车：代码已合入（commit `e561971`），镜像
+> `nicematrix-logto:release-e56197125ec3f00d4760d11a4dc6448a050ff6cc-20260914-140410` 已构建并核对
+> （`packages/core build: Done`、0 个 TS 错误；bundle 内 avatar 2 处 / deletion-request 3 处调用，
+> GET 未动；与在线镜像逐项比较 `requestedResources` / `hookMatchesRegion` / `by-identity` /
+> `verification-records` / `mfaIssuerName` / 49 connector 全部一致，仅断言调用点 26→31）。
+> 待做：按下方配方在 id-staging 验证，再经确认部署 prod-1。阶段二无需再处理此项。
 
 升级复盘遗留项 #2（`upgrade-1.43/POST-UPGRADE-REVIEW.md` §4）。1.43 给**所有上游 Account API
 写操作**加了 first-party 断言（`core/src/utils/assert-first-party-client.ts`：token 属于第三方
