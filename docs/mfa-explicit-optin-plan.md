@@ -251,6 +251,12 @@ if (enabled === undefined) {
 9. 已绑因子用户走 MFA 挑战页 → 邮箱 / 手机备用通道仍可用（Package A 回归）。
 10. `GET /mfa-settings` 三个新字段与第 4、5、7 步的真实登录行为**逐一对齐**。
 11. 旧客户端只读 `skipMfaOnSignIn` 时不报错（纯增量回归）。
+12. 旧客户端用 `{skipMfaOnSignIn:false}` **开启**时：返回体如实报 `isEnabled=false`，
+    `mfa.enabled` 不被写入，登录也确实不被要求 —— 三者一致。
+    （2026-09-14 补。第 11 项只测了旧 body 的「关」方向，而三端 native 客户端
+    实际发的是「开」方向；静默回填拆除后它只写一半状态，已无法开启。行为符合
+    口径 #1，但对客户端是破坏性变更，故固化为回归项。客户端整改指令见
+    nicematrix-system `handoff/mfa-explicit-optin-client-brief.md`。）
 
 ## 10. 兜底（口径 #4 的退路）
 

@@ -297,6 +297,43 @@ echo "$CFG" | grep -q '"skipped": *true' && ok "item 8: mfa.skipped=true persist
 echo "$CFG" | grep -q '"enabled": *true' && no "item 8: skipping also switched it ON" "$CFG" \
   || ok "item 8: skipping did not switch anything on"
 
+hdr "item 12 — the legacy ENABLE payload is a no-op, and says so in its own response"
+# Added 2026-09-14 after the fact. Item 11 only covered the legacy OFF direction
+# ({skipMfaOnSignIn:true}); the ON direction was never tested, and that is exactly what every
+# native client sends today. With the silent back-fill gone, {skipMfaOnSignIn:false} writes only
+# half of the state, so it can no longer switch anything on. That is intended — `mfa.enabled` is
+# the user's own decision and this body never expressed it — but it IS a client-visible break,
+# so it is pinned here: the response must keep telling the caller the truth (isEnabled=false)
+# even while returning 200, and sign-in must stay unchallenged.
+read -r UL NL <<<"$(mkuser l)"
+ATL=$(acct_token "$UL"); VRL=$(vrec "$ATL")
+LSEC=$(python3 -c "import base64,secrets;print(base64.b32encode(secrets.token_bytes(20)).decode().rstrip('='))")
+curl -sS -o /dev/null -X POST "$ID/api/my-account/mfa-verifications" -H "Authorization: Bearer $ATL" \
+  -H "logto-verification-id: $VRL" -H 'Content-Type: application/json' -d "{\"type\":\"Totp\",\"secret\":\"$LSEC\"}"
+VRL=$(vrec "$ATL")
+S=$(curl -sS -X PATCH "$ID/api/my-account/mfa-settings" -H "Authorization: Bearer $ATL" \
+  -H "logto-verification-id: $VRL" -H 'Content-Type: application/json' -d '{"skipMfaOnSignIn":false}')
+echo "  PATCH {skipMfaOnSignIn:false} = $S"
+CFG=$(mfacfg "$UL"); echo "  logto_config.mfa = $CFG"
+assert_settings "$S" False True "item 12: legacy enable payload reports it did NOT switch on"
+echo "$CFG" | grep -q '"enabled"' \
+  && no "item 12 CORE: legacy payload wrote mfa.enabled behind the user's back" "$CFG" \
+  || ok "item 12 CORE: legacy payload left mfa.enabled unwritten"
+hosted_signin "$NL" "$LSEC"
+[ "$HS_MFA_DEMANDED" = "0" ] \
+  && ok "item 12: sign-in stayed unchallenged — report and behaviour agree" \
+  || no "item 12: sign-in challenged although /mfa-settings said off" "$HS_BODY"
+# And the same user opts in properly -> the switch works. Proves the no-op is the payload's
+# fault, not a broken account.
+VRL=$(vrec "$ATL")
+S=$(curl -sS -X PATCH "$ID/api/my-account/mfa-settings" -H "Authorization: Bearer $ATL" \
+  -H "logto-verification-id: $VRL" -H 'Content-Type: application/json' -d '{"isEnabled":true}')
+assert_settings "$S" True True "item 12: same user, {isEnabled:true} does switch on"
+hosted_signin "$NL" "$LSEC"
+[ "$HS_MFA_DEMANDED" = "1" ] \
+  && ok "item 12: and then sign-in really is challenged (factors: $HS_FACTORS)" \
+  || no "item 12: isEnabled=true did not reach the sign-in flow" "$HS_BODY"
+
 echo
 echo "RESULT: $pass passed, $fail failed"
 exit $fail

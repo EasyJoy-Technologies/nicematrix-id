@@ -113,7 +113,7 @@ usableFactors = 用户已绑定 ∧ 当前 SIE 仍启用 的因子（备份码�
 
 | 目标 | 内容 | 结果 |
 |---|---|---|
-| id-staging | 镜像 `release-e22b89b7…-20260914-145738` | 已上，30/30 验证全绿 |
+| id-staging | 镜像 `release-e22b89b7…-20260914-145738` | 已上，35/35 验证全绿 |
 | **prod-1 (= 两区 Logto)** | 同一镜像（`RootFS.Layers` 双端一致） | 已上，healthy，`server_error=0`，回滚锥 `rollback-prod-1-20260914-212528` |
 | m1 / m2 / m.nicematrix.com / m.ej-mobile.cn | admin **v1.0.474** 文档站 | 已上，四站逐页验收通过 |
 
@@ -131,8 +131,27 @@ usableFactors = 用户已绑定 ∧ 当前 SIE 仍启用 的因子（备份码�
 - `pnpm --filter @logto/account check`：本次涉及文件 0 error（其余报错为既有 override 的
   phrase 类型问题，与本次无关）。
 - `jest src/pages/Security`：**38 passed / 38**，含新增用例「无已绑因子时开关置灰且不可写入」。
-- staging 端到端验证：`docs/upgrade-1.43/smoke/smoke-mfa-explicit-optin.sh` —— **30 passed / 0 failed**
-  （§9 十一项全覆盖，每条「开关说 X」都配一次真实托管页登录验证行为）。
+- staging 端到端验证：`docs/upgrade-1.43/smoke/smoke-mfa-explicit-optin.sh` —— **35 passed / 0 failed**
+  （§9 十二项全覆盖，每条「开关说 X」都配一次真实托管页登录验证行为）。
+
+### 上线后补测的缺口（2026-09-14，item 12）
+
+首轮 30 项里，旧 body 只测了 `{skipMfaOnSignIn:true}`（**关**方向），没测 `{skipMfaOnSignIn:false}`
+（**开**方向）—— 而 NiceNote / NiceList / NiceRecorder 三端 native 客户端发的正是后者。
+静默回填拆除后它只写 `skipMfaOnSignIn`、不写 `enabled`，因此**已无法开启**：
+
+```
+PATCH {"skipMfaOnSignIn":false}  -> 200 {"isEnabled":false,...}   DB: {"skipMfaOnSignIn": false}
+                                 -> 真实托管页登录：未被挑战
+PATCH {"isEnabled":true}         -> 200 {"isEnabled":true,...}    DB: {"enabled": true, "skipMfaOnSignIn": false}
+                                 -> 真实托管页登录：被挑战 ✅
+```
+
+服务端行为符合口径 #1（这个 body 从来没表达过「用户要开」），且返回体如实报 `isEnabled:false`，
+没有说谎；但对客户端是**破坏性变更** —— 旧代码会 200 后点亮开关而登录不验。已固化为 item 12
+（含「同一用户改发 `isEnabled:true` 即恢复」的对照组，排除账号本身的问题），
+并出具客户端整改指令：nicematrix-system `handoff/mfa-explicit-optin-client-brief.md`。
+关闭方向不受影响。
 - 回归：`smoke-mfa-neutral` 10/10、`smoke-first-party-account-writes` 17/17、`smoke-hosted-login` 13/13。
   后者的 MFA 断言已改写：管理员通过 Management API 预置的因子**不再构成强制** —— 这是本次
   口径的直接后果，若有运营流程依赖「后台装上 TOTP = 强制用户二次验证」需改流程（现网无此用法）。
