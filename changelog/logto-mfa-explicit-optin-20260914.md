@@ -109,13 +109,33 @@ usableFactors = 用户已绑定 ∧ 当前 SIE 仍启用 的因子（备份码�
 11.5 万条隐式短信 / 邮件 2FA。`enabled` 未设 + 有已绑因子这一格实测为 0 人，因此不存在
 「本来被强制、改后突然不被强制」的情况。
 
+## 3.1 上线记录
+
+| 目标 | 内容 | 结果 |
+|---|---|---|
+| id-staging | 镜像 `release-e22b89b7…-20260914-145738` | 已上，30/30 验证全绿 |
+| **prod-1 (= 两区 Logto)** | 同一镜像（`RootFS.Layers` 双端一致） | 已上，healthy，`server_error=0`，回滚锥 `rollback-prod-1-20260914-212528` |
+| m1 / m2 / m.nicematrix.com / m.ej-mobile.cn | admin **v1.0.474** 文档站 | 已上，四站逐页验收通过 |
+
+**血统护栏（新旧镜像逐项对比，prod-1 上实测）**：`requestedResources` 7、`hookMatchesRegion` 2、
+`by-identity` 2、`verification-records` 4、`mfaIssuerName` 5、`assertFirstPartyClient` 31、connectors 49
+—— **全部不变**；唯一差异是 `getUserMfaState` 0→5、`hasUsableFactor` 0→10。无任何 prod-only 修复被回退。
+
+**上线后存量实测（prod-1）**：总用户 143,636，带 `mfa.enabled` 键的仍为 **257** 人（与上线前相同）。
+分布也与 §1 调研表一致；【`enabled` 未设 + 有已绑因子】这一格仍为 **0 人**。
+该计数不再增长，就是静默回填已被拆除的持续证据 —— **建议盯一周**。
+
 ## 4. 自检
 
 - `pnpm --filter @logto/core build`（tsc）：0 error。
 - `pnpm --filter @logto/account check`：本次涉及文件 0 error（其余报错为既有 override 的
   phrase 类型问题，与本次无关）。
 - `jest src/pages/Security`：**38 passed / 38**，含新增用例「无已绑因子时开关置灰且不可写入」。
-- staging 端到端验证：见 `docs/upgrade-1.43/smoke/smoke-mfa-explicit-optin.sh`。
+- staging 端到端验证：`docs/upgrade-1.43/smoke/smoke-mfa-explicit-optin.sh` —— **30 passed / 0 failed**
+  （§9 十一项全覆盖，每条「开关说 X」都配一次真实托管页登录验证行为）。
+- 回归：`smoke-mfa-neutral` 10/10、`smoke-first-party-account-writes` 17/17、`smoke-hosted-login` 13/13。
+  后者的 MFA 断言已改写：管理员通过 Management API 预置的因子**不再构成强制** —— 这是本次
+  口径的直接后果，若有运营流程依赖「后台装上 TOTP = 强制用户二次验证」需改流程（现网无此用法）。
 
 ## 5. 文档
 
