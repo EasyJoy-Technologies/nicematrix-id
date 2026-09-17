@@ -14,6 +14,28 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Passkey suggestion page: auto-skip on browsers without WebAuthn (2026-09-17)
+
+Changelog: `changelog/logto-passkey-setup-skip-unsupported-20260917.md`
+
+**Why**: with `passkey_sign_in.enabled` on, the server suggests binding a passkey at the end of
+every interaction (422 `user.passkey_preferred`). Upstream's `PasskeySetup` answers a browser
+without WebAuthn with a terminal `<ErrorPage>` — and the skip control lives on the layout that
+branch never renders, so the interaction can never be submitted. On prod-1 over 60 days, 175
+users reached that page and 81 (46%) never signed in again; the affected clients are Android
+WebView and the stock Chinese-Android browsers Custom Tabs falls back to, so it cannot be fixed
+client-side.
+
+| File | Kind | Change |
+|---|---|---|
+| `experience/src/pages/PasskeySetup/index.tsx` | override | no-WebAuthn branch calls the existing skip endpoint automatically and continues the flow (loading layer meanwhile); upstream's error page stays as the fallback if that skip fails. `onSkip` returns a boolean so both paths share one implementation — the layout ignores it. |
+| `experience/src/pages/PasskeySetup/index.test.tsx` | **new (ours)** | 4 cases, incl. the regression guard "a browser WITH WebAuthn never issues a skip request". |
+
+**Deliberately unchanged**: the supported-browser path (options fetch, bind button, manual skip),
+the meaning of the persisted `logto_config.passkey_sign_in.skipped` flag, the server-side
+`assertPasskeySignInFulfilled`, and all three `passkey_sign_in.*` sign-in-experience switches.
+No new i18n key.
+
 ### Two-step verification = explicit opt-in (2026-09-14, stage 2)
 
 Plan: `docs/mfa-explicit-optin-plan.md` · changelog:
