@@ -73,4 +73,36 @@ Samsung 11 / HeyTap 10 / vivo 5 / Quark 5 / UC 4，Chrome 系合计仅 18。
 
 ## 4. 上线记录
 
-（部署后补：staging 镜像 / 验证结果 / prod-1 镜像 / 回滚锚点）
+镜像：`nicematrix-logto:release-2c700e9a05e7b9cd56074304dd9cd157b2510a85-20260917-053744`
+
+| 目标 | 结果 |
+|---|---|
+| id-staging | 已上，回滚锚点 `rollback-staging-20260917-054655` |
+| **prod-1（= intl + cn 两区）** | 已上，healthy，`RestartCount=0`，`server_error=0`，回滚锚点 `rollback-prod-1-20260917-055819` |
+
+**镜像同一性**：`docker save` → rsync → `docker load`，两端 tar md5 一致（`b04b12fc…`），
+两端 `RootFS.Layers` md5 一致（`7cf85792…`）。
+
+**血统护栏**（prod-1 主机上新旧镜像逐项比对）：`requestedResources` 7、`hookMatchesRegion` 2、
+`by-identity` 2、`verification-records` 4、`mfaIssuerName` 5、`assertFirstPartyClient` 31、
+`getUserMfaState` 5、`hasUsableFactor` 10、connectors 49 —— **全部不变**；唯一差异是新增的
+PasskeySetup override。无任何 prod-only 修复被回退。
+
+**部署后核验**：容器 healthy；`openid-configuration` 200 / `/api/status` 204 / `/oidc/jwks` 200 /
+`/console/` 200；近 10 分钟 `server_error` = 0；生产登录页在「无 WebAuthn」浏览器下正常渲染，
+且服务的 experience bundle 已是本次构建产物（`index-C7GZvDo9.js`）。
+
+### staging 端到端验证（单变量对照，真实托管登录）
+
+两次登录**用例完全相同，只差一个变量**：浏览器是否暴露 `window.PublicKeyCredential`。
+脚本：`/root/tmp/id-probe/verify-passkey-autoskip.mjs`（Playwright + Chromium 移动端模拟）。
+
+| | A：无 WebAuthn（等价于 WebView / 华为·MIUI·Quark） | B：有 WebAuthn（对照组） |
+|---|---|---|
+| 密码提交后的第一屏 | `/mfa-binding/BackupCode` —— **通行密钥这一关被静默跳过** | **`/create-passkey`**（上游页面完整：Skip / Create a passkey） |
+| `mfa.webauthn_not_supported` 错误页 | **未出现** | 未出现 |
+| 登录是否走完 | **是**，最终以该用户身份登入 m1（拿到并兑换了授权码） | 是（手动 Skip 后走完） |
+| 落库 `logto_config.passkey_sign_in.skipped` | **true**（与手动点「跳过」完全一致） | — |
+
+B 组同时证明了两件事：该 staging 部署上**这道关是开着的**（否则 A 组的通过毫无意义），
+以及**支持 WebAuthn 的路径一行行为都没变**。测试用户 2 个，验完即删（复核残留 0）。
