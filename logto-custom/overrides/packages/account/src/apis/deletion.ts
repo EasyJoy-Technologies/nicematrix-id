@@ -9,7 +9,7 @@ import { createAuthenticatedKy } from './base-ky';
 
 export type DeletionRequest = {
   id: string;
-  status: 'awaiting_confirmation' | 'pending' | 'cancelled' | 'executed' | 'failed';
+  status: 'awaiting_confirmation' | 'pending' | 'executing' | 'cancelled' | 'executed' | 'failed';
   reason: string | null;
   requested_at: string;
   confirmed_at: string | null;

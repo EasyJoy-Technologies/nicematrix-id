@@ -12,6 +12,8 @@
  *   3. useAuthRedirect: root is a normal authenticated page (upstream suppresses
  *      the auth redirect at root because its root immediately navigates away;
  *      ours doesn't, so root must trigger sign-in).
+ *   4. /deletion/verify renders the deletion re-verification step (the deletion
+ *      card used to navigate to a non-existent /verify route).
  * Layout and everything else are verbatim upstream 1.43.0 — including the new
  * `UserScope.TrustedDevices` request scope (trusted devices stay disabled at the
  * tenant level, so this is inert).
@@ -70,6 +72,7 @@ import {
 import initI18n from './i18n/init';
 import BackupCodeBinding from './pages/BackupCodeBinding';
 import BackupCodeView from './pages/BackupCodeView';
+import DeletionVerify, { deletionVerifyRoute } from './pages/DeletionVerify';
 import Email from './pages/Email';
 import Home from './pages/Home';
 import PasskeyBinding from './pages/PasskeyBinding';
@@ -195,6 +198,8 @@ export const Main = () => {
       <Route path={passkeyAddRoute} element={<PasskeyBinding />} />
       <Route path={passkeyManageRoute} element={<PasskeyView />} />
       <Route path={verifiedActionRoute} element={<VerifiedAction />} />
+      {/* [NiceMatrix] deletion re-verification step (see pages/DeletionVerify). */}
+      <Route path={deletionVerifyRoute} element={<DeletionVerify />} />
       <Route path={`${socialRoutePrefix}/:connectorId`} element={<SocialFlow mode="add" />} />
       <Route
         path={`${socialRoutePrefix}/:connectorId/change`}

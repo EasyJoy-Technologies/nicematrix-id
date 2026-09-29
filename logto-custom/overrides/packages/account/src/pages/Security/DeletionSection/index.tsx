@@ -9,16 +9,17 @@
  *     confirm → POST /api/my-account/deletion-request).
  *
  * All sensitive calls require the user to have a valid re-verification record
- * (verificationId in PageContext). If none, the usual Account Center
- * re-verification flow kicks in first (Password / Email / Phone).
+ * (verificationId in PageContext). If none, the user is sent to
+ * `pages/DeletionVerify` (Password / Email / Phone) and the dialog reopens on
+ * return. A request the Backend has already claimed ('executing') is shown
+ * without a cancel action — it can no longer be cancelled.
  */
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import PageContext from '@ac/Providers/PageContextProvider/PageContext';
 import useApi from '@ac/hooks/use-api';
-import { getPendingReturn, setPendingReturn } from '@ac/utils/account-center-route';
 
 import {
   cancelDeletionRequest,
@@ -28,6 +29,8 @@ import {
   type DeletionRequest,
 } from '@ac/apis/deletion';
 import { injectDeletionPhrases } from '@ac/i18n/deletion-phrases';
+
+import { deletionVerifyRoute, reopenDeletionStateKey } from '../../DeletionVerify';
 
 import styles from './index.module.scss';
 
@@ -58,28 +61,36 @@ type BannerProps = {
 export const DeletionBanner = ({ request, onCancel }: BannerProps) => {
   const { t, i18n } = useTranslation();
   const isPending = request.status === 'pending';
+  const isExecuting = request.status === 'executing';
+
+  const title = isExecuting
+    ? t('account_center.deletion.executing_banner_title')
+    : isPending
+      ? t('account_center.deletion.pending_banner_title', {
+          date: formatDate(request.scheduled_at, i18n.language),
+        })
+      : t('account_center.deletion.awaiting_confirmation_banner_title');
+  const description = isExecuting
+    ? t('account_center.deletion.executing_banner_description')
+    : isPending
+      ? t('account_center.deletion.pending_banner_description')
+      : t('account_center.deletion.awaiting_confirmation_banner_description');
 
   return (
     <div
-      className={`${styles.banner} ${isPending ? styles.bannerPending : styles.bannerAwaiting}`}
+      className={`${styles.banner} ${
+        isPending || isExecuting ? styles.bannerPending : styles.bannerAwaiting
+      }`}
     >
-      <div className={styles.bannerTitle}>
-        {isPending
-          ? t('account_center.deletion.pending_banner_title', {
-              date: formatDate(request.scheduled_at, i18n.language),
-            })
-          : t('account_center.deletion.awaiting_confirmation_banner_title')}
-      </div>
-      <div className={styles.bannerDescription}>
-        {isPending
-          ? t('account_center.deletion.pending_banner_description')
-          : t('account_center.deletion.awaiting_confirmation_banner_description')}
-      </div>
-      <div className={styles.bannerActions}>
-        <button type="button" className={styles.cancelButton} onClick={onCancel}>
-          {t('account_center.deletion.cancel_request')}
-        </button>
-      </div>
+      <div className={styles.bannerTitle}>{title}</div>
+      <div className={styles.bannerDescription}>{description}</div>
+      {!isExecuting && (
+        <div className={styles.bannerActions}>
+          <button type="button" className={styles.cancelButton} onClick={onCancel}>
+            {t('account_center.deletion.cancel_request')}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -91,6 +102,7 @@ type Props = {
 const DeletionSection = ({ onRequestChanged }: Props) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { verificationId, setVerificationId, setToast, userInfo } = useContext(PageContext);
   // Users without a primary email skip the email-confirmation step entirely
   // (the request goes straight to the 15-day grace window), so the modal copy
@@ -128,21 +140,34 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleOpenModal = useCallback(() => {
-    // If no verification record, kick the user to the re-verify flow; we
-    // persist a "return here after verify" URL so the modal can re-open.
-    if (!verificationId) {
-      setPendingReturn(getPendingReturn() ?? window.location.href);
-      // The standard PageContext re-verification path lives at /verify. We
-      // just reset and let the upstream provider redirect.
-      setVerificationId(undefined);
-      navigate('/verify');
-      return;
-    }
+  const openModal = useCallback(() => {
     setStep('reason');
     setReason('');
     setIsModalOpen(true);
-  }, [navigate, setVerificationId, verificationId]);
+  }, []);
+
+  const handleOpenModal = useCallback(() => {
+    // No live verification record: verify first (pages/DeletionVerify), which
+    // returns here with router state asking this card to reopen the dialog.
+    if (!verificationId) {
+      navigate(deletionVerifyRoute);
+      return;
+    }
+    openModal();
+  }, [navigate, openModal, verificationId]);
+
+  // Returning from pages/DeletionVerify: reopen the dialog once, then drop the
+  // router state so a reload or Back does not reopen it again.
+  useEffect(() => {
+    const state = location.state as Record<string, unknown> | null;
+    if (!state?.[reopenDeletionStateKey]) {
+      return;
+    }
+    navigate(location.pathname, { replace: true, state: null });
+    if (verificationId) {
+      openModal();
+    }
+  }, [location.pathname, location.state, navigate, openModal, verificationId]);
 
   const handleSubmit = useCallback(async () => {
     if (!verificationId || isSubmitting) {
@@ -155,7 +180,14 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
     if (err) {
       const code = err?.data?.code as string | undefined;
       if (code === 'user.deletion_request_already_exists') {
+        setIsModalOpen(false);
         setToast(t('account_center.deletion.error_already_exists'));
+        await refresh();
+      } else if (code === 'verification_record.permission_denied') {
+        // The verification record expired while the dialog was open.
+        setIsModalOpen(false);
+        setVerificationId(undefined);
+        setToast(t('account_center.verification.verification_required'));
       } else {
         setToast(t('account_center.deletion.error_unknown'));
       }
@@ -184,6 +216,7 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
     reason,
     refresh,
     setToast,
+    setVerificationId,
     t,
     verificationId,
   ]);
@@ -191,7 +224,13 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
   const handleCancel = useCallback(async () => {
     const [err] = await cancelRequest();
     if (err) {
-      setToast(t('account_center.deletion.error_unknown'));
+      const code = err?.data?.code as string | undefined;
+      setToast(
+        code === 'user.deletion_request_executing'
+          ? t('account_center.deletion.error_executing')
+          : t('account_center.deletion.error_unknown')
+      );
+      await refresh();
       return;
     }
     setToast(t('account_center.deletion.cancel_success'));
@@ -201,7 +240,8 @@ const DeletionSection = ({ onRequestChanged }: Props) => {
   const hasOpenRequest = useMemo(
     () =>
       currentRequest?.status === 'awaiting_confirmation' ||
-      currentRequest?.status === 'pending',
+      currentRequest?.status === 'pending' ||
+      currentRequest?.status === 'executing',
     [currentRequest]
   );
 

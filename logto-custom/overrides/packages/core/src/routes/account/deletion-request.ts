@@ -33,6 +33,8 @@
  *   DELETE /api/my-account/deletion-request
  *     Cancels the current open request (either awaiting_confirmation or
  *     pending). Safe to call even if no open request exists (returns 204).
+ *     A request the Backend has already claimed ('executing') can no longer be
+ *     cancelled: 409 user.deletion_request_executing (sql/20260929_*).
  *
  *   The actual user deletion is executed by NiceMatrix-Backend's cron job,
  *   not by Logto. See apps/api/src/modules/user-deletion.js.
@@ -159,7 +161,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
           from user_deletion_requests
          where tenant_id = ${tenantId}
            and user_id = ${userId}
-           and status in ('awaiting_confirmation', 'pending')
+           and status in ('awaiting_confirmation', 'pending', 'executing')
          order by created_at desc
          limit 1
       `);
@@ -218,7 +220,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
         select id, status from user_deletion_requests
          where tenant_id = ${tenantId}
            and user_id = ${userId}
-           and status in ('awaiting_confirmation', 'pending')
+           and status in ('awaiting_confirmation', 'pending', 'executing')
          limit 1
       `);
       if (existing) {
@@ -365,7 +367,7 @@ export default function deletionRequestRoutes<T extends UserRouter>(
   router.delete(
     `${accountApiPrefix}/deletion-request`,
     koaGuard({
-      status: [204, 401, 403],
+      status: [204, 401, 403, 409],
     }),
     async (ctx, next) => {
       const { id: userId, scopes, clientId } = ctx.auth;
@@ -375,7 +377,9 @@ export default function deletionRequestRoutes<T extends UserRouter>(
       );
       await assertFirstPartyClient(queries, clientId);
 
-      await pool.query(sql`
+      // The status predicate is re-evaluated under the row lock, so this update and the
+      // Backend's `pending -> executing` claim serialize: exactly one of them wins.
+      const cancelled = await pool.query(sql`
         update user_deletion_requests
            set status = 'cancelled',
                cancelled_at = now(),
@@ -385,6 +389,19 @@ export default function deletionRequestRoutes<T extends UserRouter>(
            and user_id = ${userId}
            and status in ('awaiting_confirmation', 'pending')
       `);
+
+      if (cancelled.rowCount === 0) {
+        const executing = await pool.maybeOne<{ id: string }>(sql`
+          select id from user_deletion_requests
+           where tenant_id = ${tenantId}
+             and user_id = ${userId}
+             and status = 'executing'
+           limit 1
+        `);
+        if (executing) {
+          throw new RequestError({ code: 'user.deletion_request_executing', status: 409 });
+        }
+      }
 
       ctx.status = 204;
       return next();

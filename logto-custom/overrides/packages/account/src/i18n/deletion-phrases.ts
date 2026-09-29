@@ -50,6 +50,10 @@ const phrases = {
         error_already_exists: '您已经有一个未完成的注销申请',
         error_token_expired: '确认链接已过期，请重新发起注销申请',
         error_token_invalid: '确认链接无效',
+        executing_banner_title: '账户正在删除中',
+        executing_banner_description:
+          '冷静期已结束，系统正在永久删除您的账户与数据，此过程无法取消。',
+        error_executing: '账户已进入删除执行阶段，无法再取消',
         error_unknown: '操作失败，请稍后重试',
       },
     },
@@ -94,6 +98,10 @@ const phrases = {
         error_already_exists: '您已經有一個未完成的註銷申請',
         error_token_expired: '確認連結已過期，請重新發起註銷申請',
         error_token_invalid: '確認連結無效',
+        executing_banner_title: '帳戶正在刪除中',
+        executing_banner_description:
+          '冷靜期已結束，系統正在永久刪除您的帳戶與資料，此過程無法取消。',
+        error_executing: '帳戶已進入刪除執行階段，無法再取消',
         error_unknown: '操作失敗，請稍後再試',
       },
     },
@@ -138,6 +146,10 @@ const phrases = {
         error_already_exists: '您已經有一個未完成的註銷申請',
         error_token_expired: '確認連結已過期，請重新發起註銷申請',
         error_token_invalid: '確認連結無效',
+        executing_banner_title: '帳戶正在刪除中',
+        executing_banner_description:
+          '冷靜期已結束，系統正在永久刪除您的帳戶與資料，此過程無法取消。',
+        error_executing: '帳戶已進入刪除執行階段，無法再取消',
         error_unknown: '操作失敗，請稍後再試',
       },
     },
@@ -182,6 +194,10 @@ const phrases = {
         error_already_exists: 'You already have an open deletion request',
         error_token_expired: 'Confirmation link expired. Please submit a new request.',
         error_token_invalid: 'Invalid confirmation link.',
+        executing_banner_title: 'Your account is being deleted',
+        executing_banner_description:
+          'The grace window has ended and your account and data are being permanently deleted. This can no longer be cancelled.',
+        error_executing: 'Deletion is already in progress and can no longer be cancelled.',
         error_unknown: 'Something went wrong. Please try again.',
       },
     },

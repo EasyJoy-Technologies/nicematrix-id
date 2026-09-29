@@ -136,6 +136,15 @@ No dist bundle patching is used in the active workflow.
      `step_confirm_warning_no_email` / `create_success_no_email`（4 locale 齐）。
    - 后端兜底：`nicematrix-backend` user-deletion sweeper（见该 repo
      docs/account-deletion.md）。
+   - 2026-09-29 追加（NiceNote 账户中心审查 §10 N11/N12）：
+     - schema `sql/20260929_user_deletion_executing.sql`：新增 `executing` 状态与
+       `attempt_count / next_attempt_at / lease_owner / lease_until`（Backend 原子认领 + 重试）；
+     - 路由：GET / POST 的「开放请求」包含 `executing`；DELETE 遇 `executing` 返回
+       409 `user.deletion_request_executing`（取消与 Backend 认领在行锁上串行化）；
+     - Account Center：新页 `pages/DeletionVerify`（路由 `/deletion/verify`，经
+       `App.tsx` override 注册）取代不存在的 `/verify` 死路由；DeletionSection 支持
+       `executing` 横幅（无取消按钮）、验证记录过期提示；`deletion-phrases.ts` 新增
+       `executing_banner_*` / `error_executing`（4 locale 齐）。
 
 10. 区域感知三方登录按钮显隐 `hide_social` / `show_social`（2026-06-17，决策：Xianglin）：
     - Override 文件（4 改 + 1 新建）：
