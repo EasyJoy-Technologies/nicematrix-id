@@ -34,3 +34,11 @@ Migrations → Backend → Logto image. Rollback: image + Backend first, `.down.
 ## Tests
 `backup-codes-replace.test.ts`, `social-step-up.test.ts`, `koa-oidc-auth.social-step-up.test.ts`,
 `nicematrix-account-extras.test.ts` (totp-key-uri, first-password gate, Apple capture).
+
+## Deployed (2026-09-30)
+- staging `id-staging` + prod-1 `id.nicematrix.com` (= both regions): image
+  `nicematrix-logto:release-71a7b5cbb5c300d547fa0a5449654f1d5eb3abfc-20260930-061111` (bundle `main-A3I7YT4S.js`,
+  RootFS layers identical on both hosts). prod-1 rollback tag `nicematrix-logto:rollback-prod-1-20260930-160253`.
+- Schema applied on staging + prod-1 (x2, idempotent); only `systems` / `service_logs` lack RLS.
+- Verified: discovery 200 / status 204 / JWKS 200, server_error 0, new routes 401 (control 404), `/account/deletion/verify` 200,
+  token endpoint serving after the switch. `NICEMATRIX_FIRST_PASSWORD_STEP_UP` not set (off).
