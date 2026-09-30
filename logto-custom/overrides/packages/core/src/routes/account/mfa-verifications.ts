@@ -40,9 +40,12 @@
  * the one place where the system writes the flag on the user's behalf, and it only ever writes
  * "off" - it can never turn two-step verification on for anyone.
  *
+ * ADDITION (2026-09-29) - POST /mfa-verifications/totp-secret/generate also returns
+ * `otpauthUri` + `secretQrCode` (libraries/totp-key-uri.ts). Additive; `secret` unchanged.
+ *
  * On upstream sync: re-copy this file from upstream, re-remove the same four
  * `logtoConfig: buildUpdatedUserLogtoConfig(user, { mfa: { enabled: true } })` writes, and
- * re-apply the last-factor write-back in the DELETE route.
+ * re-apply the last-factor write-back in the DELETE route and the generate-route addition.
  */
 /* eslint-disable max-lines */
 import { UserScope } from '@logto/core-kit';
@@ -62,6 +65,8 @@ import RequestError from '#src/errors/RequestError/index.js';
 import { buildUpdatedUserLogtoConfig } from '#src/libraries/user-logto-config.js';
 // [NiceMatrix] shared explicit-opt-in judgement, see `libraries/user-mfa-state.ts`.
 import { getUsableMfaFactors } from '#src/libraries/user-mfa-state.js';
+// [NiceMatrix] otpauth:// URI + QR for the Account API secret generator.
+import { buildTotpEnrollment } from '#src/libraries/totp-key-uri.js';
 import {
   generateBackupCodes,
   validateBackupCodes,
@@ -376,12 +381,21 @@ export default function mfaVerificationsRoutes<T extends UserRouter>(
   router.post(
     `${accountApiPrefix}/mfa-verifications/totp-secret/generate`,
     koaGuard({
+      // [NiceMatrix] additive: `otpauthUri` + `secretQrCode` (PNG data URL) next to `secret`,
+      // so a native client can hand the URI straight to an authenticator app.
+      response: z.object({
+        secret: z.string(),
+        otpauthUri: z.string(),
+        secretQrCode: z.string(),
+      }),
       status: [200],
     }),
     async (ctx, next) => {
       const secret = generateTotpSecret();
+      const user = await findUserById(ctx.auth.id);
       ctx.body = {
         secret,
+        ...(await buildTotpEnrollment(user, secret)),
       };
 
       return next();

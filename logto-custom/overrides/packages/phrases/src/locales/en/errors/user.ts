@@ -1,0 +1,75 @@
+/*
+ * [NiceMatrix override] vs upstream packages/phrases/src/locales/en/errors/user.ts (v1.43.0).
+ * Verbatim copy + the NiceMatrix error codes appended at the end of the object
+ * (account deletion request routes + social step-up, see nicematrix-id docs/patches.md).
+ * On upstream sync: re-copy this file and re-append the block marked [NiceMatrix].
+ */
+const user = {
+  username_already_in_use: 'This username is already in use.',
+  username_starts_with_number: 'Username cannot start with a number.',
+  username_invalid_charset_hard: 'Username can only contain letters, numbers, and underscores.',
+  username_too_short: 'Username is too short.',
+  username_too_long: 'Username is too long.',
+  username_uppercase_not_allowed: 'Username cannot contain uppercase letters.',
+  username_lowercase_not_allowed: 'Username cannot contain lowercase letters.',
+  username_numbers_not_allowed: 'Username cannot contain numbers.',
+  username_underscore_not_allowed: 'Username cannot contain underscores.',
+  email_already_in_use: 'This email is associated with an existing account.',
+  phone_already_in_use: 'This phone number is associated with an existing account.',
+  invalid_email: 'Invalid email address.',
+  invalid_phone: 'Invalid phone number.',
+  email_not_exist: 'The email address has not been registered yet.',
+  phone_not_exist: 'The phone number has not been registered yet.',
+  identity_not_exist: 'The social account has not been registered yet.',
+  sso_identity_not_exist: 'The enterprise SSO account has not been registered yet.',
+  identity_already_in_use: 'The social account has been associated with an existing account.',
+  social_account_exists_in_profile: 'You have already associated this social account.',
+  cannot_delete_self: 'You cannot delete yourself.',
+  sign_up_method_not_enabled: 'This sign-up method is not enabled.',
+  sign_in_method_not_enabled: 'This sign-in method is not enabled.',
+  same_password: 'New password cannot be the same as your old password.',
+  password_required_in_profile: 'You need to set a password before signing-in.',
+  new_password_required_in_profile: 'You need to set a new password.',
+  password_exists_in_profile: 'Password already exists in your profile.',
+  username_required_in_profile: 'You need to set a username before signing-in.',
+  username_exists_in_profile: 'Username already exists in your profile.',
+  email_required_in_profile: 'You need to add an email address before signing-in.',
+  email_exists_in_profile: 'Your profile has already associated with an email address.',
+  phone_required_in_profile: 'You need to add a phone number before signing-in.',
+  phone_exists_in_profile: 'Your profile has already associated with a phone number.',
+  email_or_phone_required_in_profile:
+    'You need to add an email address or phone number before signing-in.',
+  suspended: 'This account is suspended.',
+  user_not_exist: 'User with {{ identifier }} does not exist.',
+  missing_profile: 'You need to provide additional info before signing-in.',
+  role_exists: 'The role id {{roleId}} is already been added to this user',
+  invalid_role_type: 'Invalid role type, can not assign machine-to-machine role to user.',
+  suggest_mfa: 'For better account security, we recommend binding MFA to your account.',
+  missing_mfa: 'You need to bind additional MFA before signing-in.',
+  totp_already_in_use: 'TOTP is already in use.',
+  backup_code_already_in_use: 'Backup code is already in use.',
+  password_algorithm_required: 'Password algorithm is required.',
+  password_and_digest: 'You cannot set both plain text password and password digest.',
+  personal_access_token_name_exists: 'Personal access token name already exists.',
+  totp_secret_invalid: 'Invalid TOTP secret supplied.',
+  wrong_backup_code_format: 'Backup code format is invalid.',
+  username_required: 'Username is a required identifier, you can not set it to null.',
+  email_or_phone_required:
+    'Email address or phone number is a required identifier, at least one is required.',
+  last_sign_in_method_required: 'You need to keep at least one identifier in your account.',
+  email_required: 'Email address is a required identifier, you can not set it to null.',
+  phone_required: 'Phone number is a required identifier, you can not set it to null.',
+  enterprise_sso_identity_not_exists:
+    'The user does not have an enterprise identity linked to the specified SSO connector ID: {{ ssoConnectorId }}.',
+  identity_not_exists_in_current_user:
+    'The specified identity does not exist in the current user account. Please link the identity before proceeding.',
+  passkey_preferred: 'Create a passkey to simplify your sign-in process.',
+  // [NiceMatrix] custom error codes (not in upstream).
+  deletion_request_already_exists: 'You already have an open account deletion request.',
+  deletion_request_token_invalid: 'The account deletion confirmation link is invalid.',
+  deletion_request_token_expired: 'The account deletion confirmation link has expired. Please submit a new request.',
+  deletion_request_executing: 'Account deletion is already in progress and can no longer be cancelled.',
+  social_identity_mismatch: 'The signed-in third-party account does not match the one linked to this account.',
+};
+
+export default Object.freeze(user);

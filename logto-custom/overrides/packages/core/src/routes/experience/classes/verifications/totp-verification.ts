@@ -9,6 +9,9 @@
  * issuer is not part of the TOTP HMAC, so code generation/verification is
  * unchanged. The `ctx` parameter of `generateNewSecret` is retained (as
  * `_ctx`) so the upstream caller route file needs no override.
+ *
+ * 2026-09-29: the otpauth URI + QR builder moved to `libraries/totp-key-uri.ts`, shared with
+ * the Account API secret generator so both produce the identical URI.
  */
 import {
   MfaFactor,
@@ -20,12 +23,10 @@ import {
   totpVerificationRecordDataGuard,
   type SanitizedTotpVerificationRecordData,
 } from '@logto/schemas';
-import { generateStandardId, getUserDisplayName } from '@logto/shared';
-import { authenticator } from 'otplib';
-import qrcode from 'qrcode';
+import { generateStandardId } from '@logto/shared';
 
-// [NiceMatrix] single source of truth for the authenticator-app brand name.
-import { mfaIssuerName } from '#src/constants/mfa-issuer.js';
+// [NiceMatrix] shared otpauth:// builder (brand issuer + display-name rule).
+import { buildTotpEnrollment } from '#src/libraries/totp-key-uri.js';
 import {
   generateTotpSecret,
   getTotpTokenTimeStep,
@@ -44,8 +45,6 @@ export {
   totpVerificationRecordDataGuard,
   sanitizedTotpVerificationRecordDataGuard,
 } from '@logto/schemas';
-
-const defaultDisplayName = 'Unnamed User';
 
 // Type assertion for the user's TOTP mfa verification settings
 const findUserTotp = (
@@ -213,11 +212,11 @@ export class TotpVerification implements MfaVerificationRecord<VerificationType.
 
     assertThat(secret, 'session.mfa.pending_info_not_found');
 
-    const { username, primaryEmail, primaryPhone, name } = await findUserById(userId);
-    const displayName = getUserDisplayName({ username, primaryEmail, primaryPhone, name });
-    // [NiceMatrix] issuer (arg 2) = brand name, not request hostname.
-    const keyUri = authenticator.keyuri(displayName ?? defaultDisplayName, mfaIssuerName, secret);
+    // [NiceMatrix] issuer = brand name, not request hostname; the URI builder is shared with
+    // the Account API secret generator (libraries/totp-key-uri.ts).
+    const { secretQrCode } = await buildTotpEnrollment(await findUserById(userId), secret);
 
-    return qrcode.toDataURL(keyUri);
+    return secretQrCode;
   }
+
 }

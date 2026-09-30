@@ -1,6 +1,7 @@
 import { object, string } from 'zod';
 
 import RequestError from '#src/errors/RequestError/index.js';
+import { isSocialStepUpBoundToUser } from '#src/libraries/social-step-up.js';
 import koaGuard from '#src/middleware/koa-guard.js';
 import {
   verificationRecordDataGuard,
@@ -49,6 +50,11 @@ import type { ManagementApiRouter, RouterInitArgs } from '../types.js';
  * working passwordless step-up routes are therefore password-bootstrap and
  * passkey; redo-social is NOT one of them.
  *
+ * UPDATE (2026-09-29): `/api/my-account/verifications/social` (routes/account/social-step-up.ts)
+ * now mints Social records bound to the user. Such a record passes here only while its third-party
+ * user id is still the user's linked identity for that connector — the same rule the Account
+ * API applies (libraries/social-step-up.ts). Upstream-created Social records still fail.
+ *
  * SAFETY:
  *   - Mounted on managementRouter, which already enforces M2M auth +
  *     `PredefinedScope.All` (koa-auth). No extra auth code; an unauthenticated /
@@ -94,6 +100,11 @@ export default function adminUserVerificationRecordsRoutes<T extends ManagementA
 
       const instance = buildVerificationRecord(libraries, queries, result.data);
       if (!instance.isVerified) {
+        throw new RequestError({ code: 'verification_record.not_found', status: 422 });
+      }
+      // [NiceMatrix 2026-09-29] social step-up: a Social record must also still match the
+      // user's linked identity (libraries/social-step-up.ts); other types are unaffected.
+      if (!(await isSocialStepUpBoundToUser(libraries, queries, instance, userId))) {
         throw new RequestError({ code: 'verification_record.not_found', status: 422 });
       }
 

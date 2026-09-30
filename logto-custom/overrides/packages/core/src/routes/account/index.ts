@@ -1,8 +1,9 @@
 /*
  * [NiceMatrix override] vs upstream packages/core/src/routes/account/index.ts (v1.43.0).
- * Two unrelated changes, both marked inline with `[NiceMatrix]`:
+ * Changes, all marked inline with `[NiceMatrix]`:
  *
- * 1. Mounts our own account routes (avatar upload/delete, self-service deletion request).
+ * 1. Mounts our own account routes (avatar upload/delete, self-service deletion request,
+ *    atomic backup-code replace).
  *
  * 2. `GET` / `PATCH /api/my-account/mfa-settings` now speak the explicit-opt-in model
  *    (`docs/mfa-explicit-optin-plan.md` §4). GET returns `isEnabled` / `hasUsableFactor` /
@@ -15,7 +16,10 @@
  *    Strictly additive: both parameters are optional and a legacy `{ skipMfaOnSignIn }` body
  *    behaves exactly as it did upstream - same write, same response shape plus the new fields.
  *
- * On upstream sync: re-copy this file and re-apply both changes.
+ * 3. (2026-09-29) Mounts `social-step-up.ts` and `backup-codes-replace.ts`; `POST /password`
+ *    honours the first-password gate (`first-password-gate.ts`, default off).
+ *
+ * On upstream sync: re-copy this file and re-apply all three changes.
  */
 import { usernameRegEx, UserScope } from '@logto/core-kit';
 import {
@@ -45,6 +49,7 @@ import type { UserRouter, RouterInitArgs } from '../types.js';
 import { accountApiPrefix } from './constants.js';
 // [NiceMatrix] custom account routes (avatar upload/delete + self-service deletion request).
 import avatarRoutes from './avatar.js';
+import backupCodesReplaceRoutes from './backup-codes-replace.js';
 import deletionRequestRoutes from './deletion-request.js';
 import emailAndPhoneRoutes from './email-and-phone.js';
 import accountGrantRoutes from './grants.js';
@@ -53,10 +58,13 @@ import logtoConfigRoutes from './logto-config.js';
 import mfaVerificationsRoutes from './mfa-verifications.js';
 import koaAccountCenter from './middlewares/koa-account-center.js';
 import accountSessionRoutes from './sessions.js';
+// [NiceMatrix] re-verification with the linked third-party account.
+import socialStepUpRoutes from './social-step-up.js';
 import thirdPartyTokensRoutes from './third-party-tokens.js';
 import accountTrustedDeviceRoutes from './trusted-device.js';
 import accountUserAssetsRoutes from './user-assets.js';
 import { getAccountCenterFilteredProfile, getScopedProfile } from './utils/get-scoped-profile.js';
+import { isFirstPasswordStepUpRequired } from './first-password-gate.js';
 import { hasSecurityVerificationMethod } from './utils/has-security-verification-method.js';
 
 export default function accountRoutes<T extends UserRouter>(...args: RouterInitArgs<T>) {
@@ -216,7 +224,9 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
       await assertFirstPartyClient(queries, clientId);
 
       const user = await findUserById(userId);
-      if (hasSecurityVerificationMethod(user)) {
+      // [NiceMatrix] first-password gate: with NICEMATRIX_FIRST_PASSWORD_STEP_UP=on a user with
+      // no password / email / phone must also present a verified record (social step-up).
+      if (hasSecurityVerificationMethod(user) || isFirstPasswordStepUpRequired()) {
         assertThat(
           identityVerified,
           new RequestError({ code: 'verification_record.permission_denied', status: 401 })
@@ -379,4 +389,6 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
   // [NiceMatrix] mount custom account routes.
   avatarRoutes(...args);
   deletionRequestRoutes(...args);
+  backupCodesReplaceRoutes(...args);
+  socialStepUpRoutes(...args);
 }

@@ -14,6 +14,24 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Account-center batch (2026-09-29)
+
+Changelog: `changelog/logto-account-center-batch-20260929.md` (per-file table, schema, deploy order).
+
+| File | Kind | Change |
+|---|---|---|
+| `phrases/src/locales/{en,zh-cn,zh-hk,zh-tw}/errors/user.ts` | override | + `deletion_request_*` (4), `social_identity_mismatch` |
+| `core/routes/account/backup-codes-replace.ts` | **new (ours)** | atomic `POST …/mfa-verifications/backup-codes/replace` |
+| `core/libraries/totp-key-uri.ts` | **new (ours)** | one `otpauth://` + PNG QR builder for sign-in flow and Account API |
+| `core/routes/account/mfa-verifications.ts` | override (extended) | `totp-secret/generate` adds `otpauthUri` |
+| `core/routes/experience/classes/verifications/totp-verification.ts` | override (extended) | uses `totp-key-uri.ts` |
+| `core/libraries/social-step-up.ts`, `core/routes/account/social-step-up.ts` | **new (ours)** | re-verify with the linked third-party account |
+| `core/middleware/koa-auth/koa-oidc-auth.ts` | **new override** | Social records count as verified only via `social-step-up.ts` rules |
+| `core/routes/admin-user/verification-records.ts` | override (extended) | same rule on the admin assert route |
+| `core/routes/account/first-password-gate.ts` | **new (ours)** | `NICEMATRIX_FIRST_PASSWORD_STEP_UP` (default off) |
+| `core/routes/account/index.ts` | override (extended) | mounts the two new route files; first-password gate on `POST /password` |
+| `core/libraries/apple-authorization-capture.ts`, `core/libraries/social.ts` | **new (ours)** / **new override** | Apple one-time code → `nicematrix_apple_authorization_codes` for Backend revocation |
+
 ### Passkey suggestion page: auto-skip on browsers without WebAuthn (2026-09-17)
 
 Changelog: `changelog/logto-passkey-setup-skip-unsupported-20260917.md`

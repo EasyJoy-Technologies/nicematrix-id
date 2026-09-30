@@ -1,0 +1,73 @@
+/*
+ * [NiceMatrix override] vs upstream packages/phrases/src/locales/zh-tw/errors/user.ts (v1.43.0).
+ * Verbatim copy + the NiceMatrix error codes appended at the end of the object
+ * (account deletion request routes + social step-up, see nicematrix-id docs/patches.md).
+ * On upstream sync: re-copy this file and re-append the block marked [NiceMatrix].
+ */
+const user = {
+  username_already_in_use: '該用戶名已被使用。',
+  username_starts_with_number: '用戶名不能以數字開頭。',
+  username_invalid_charset_hard: '用戶名只能包含字母、數字和下劃線。',
+  username_too_short: '用戶名太短。',
+  username_too_long: '用戶名太長。',
+  username_uppercase_not_allowed: '用戶名不能包含大寫字母。',
+  username_lowercase_not_allowed: '用戶名不能包含小寫字母。',
+  username_numbers_not_allowed: '用戶名不能包含數字。',
+  username_underscore_not_allowed: '用戶名不能包含下劃線。',
+  email_already_in_use: '該電子郵件地址已被使用。',
+  phone_already_in_use: '該手機號碼已被使用。',
+  invalid_email: '電子郵件地址不正確。',
+  invalid_phone: '手機號碼不正確。',
+  email_not_exist: '電子郵件地址尚未註冊。',
+  phone_not_exist: '手機號碼尚未註冊。',
+  identity_not_exist: '該社交帳號尚未註冊。',
+  sso_identity_not_exist: '企業 SSO 帳戶尚未註冊。',
+  identity_already_in_use: '該社交帳號已被註冊。',
+  social_account_exists_in_profile: '你已綁定當前社交帳號，無需重複操作。',
+  cannot_delete_self: '無法刪除自己的帳戶。',
+  sign_up_method_not_enabled: '註冊方式尚未啟用。',
+  sign_in_method_not_enabled: '登錄方式尚未啟用。',
+  same_password: '為確保帳戶安全，新密碼不能與舊密碼一致。',
+  password_required_in_profile: '請設置登錄密碼。',
+  new_password_required_in_profile: '請設置新密碼。',
+  password_exists_in_profile: '當前用戶已設置密碼，無需重複操作。',
+  username_required_in_profile: '請設置用戶名。',
+  username_exists_in_profile: '當前用戶已設置用戶名，無需重複操作。',
+  email_required_in_profile: '請綁定電子郵件地址',
+  email_exists_in_profile: '當前用戶已綁定電子郵件，無需重複操作。',
+  phone_required_in_profile: '請綁定手機號碼。',
+  phone_exists_in_profile: '當前用戶已綁定手機號碼，無需重複操作。',
+  email_or_phone_required_in_profile: '請綁定電子郵件地址或手機號碼。',
+  suspended: '帳戶已被禁用。',
+  user_not_exist: '未找到與 {{identifier}} 相關聯的用戶。',
+  missing_profile: '請於登錄時提供必要的用戶補充信息。',
+  role_exists: '角色 ID {{roleId}} 已添加到此用戶',
+  invalid_role_type: '無效角色類型，無法將機器對機器角色分配給用戶。',
+  suggest_mfa: '為了提升帳戶安全性，我們建議你將 MFA 綁定到你的帳戶。',
+  missing_mfa: '在登錄前需要綁定額外的多因素驗證。',
+  totp_already_in_use: 'TOTP 已經在使用中。',
+  backup_code_already_in_use: '備份代碼已經在使用中。',
+  password_algorithm_required: 'Password algorithm is required.',
+  password_and_digest: 'You cannot set both plain text password and password digest.',
+  personal_access_token_name_exists: '個人訪問令牌名稱已存在。',
+  totp_secret_invalid: '提供的 TOTP 密鑰無效。',
+  wrong_backup_code_format: '備份代碼格式無效。',
+  username_required: '用戶名是一個必需的標識符，你不能將其設為 null。',
+  email_or_phone_required: '電子郵件地址或手機號碼是一個必需的標識符，至少需要一個。',
+  last_sign_in_method_required: '你的帳戶至少需要保留一種可用的登入方式。',
+  email_required: '電子郵件地址是一個必需的標識符，你不能將其設為 null。',
+  phone_required: '手機號碼是一個必需的標識符，你不能將其設為 null。',
+  enterprise_sso_identity_not_exists:
+    '該用戶沒有連結到指定 SSO 連接器 ID 的企業身份：{{ ssoConnectorId }}。',
+  identity_not_exists_in_current_user:
+    '指定的身份在當前用戶帳戶中不存在。請先綁定該身份再繼續操作。',
+  passkey_preferred: '建立通行密鑰以簡化登入流程。',
+  // [NiceMatrix] custom error codes (not in upstream).
+  deletion_request_already_exists: '您已經有一個未完成的註銷申請。',
+  deletion_request_token_invalid: '註銷確認連結無效。',
+  deletion_request_token_expired: '註銷確認連結已過期，請重新發起註銷申請。',
+  deletion_request_executing: '帳戶已進入刪除執行階段，無法再取消。',
+  social_identity_mismatch: '登入的第三方帳號與本帳號綁定的不一致。',
+};
+
+export default Object.freeze(user);
