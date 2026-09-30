@@ -16,8 +16,8 @@
  *    Strictly additive: both parameters are optional and a legacy `{ skipMfaOnSignIn }` body
  *    behaves exactly as it did upstream - same write, same response shape plus the new fields.
  *
- * 3. (2026-09-29) Mounts `social-step-up.ts` and `backup-codes-replace.ts`; `POST /password`
- *    honours the first-password gate (`first-password-gate.ts`, default off).
+ * 3. (2026-09-29) Mounts `social-step-up.ts` and `backup-codes-replace.ts`. `POST /password` is
+ *    unchanged from upstream (first password needs no verification; gate dropped 2026-09-30).
  *
  * On upstream sync: re-copy this file and re-apply all three changes.
  */
@@ -64,7 +64,6 @@ import thirdPartyTokensRoutes from './third-party-tokens.js';
 import accountTrustedDeviceRoutes from './trusted-device.js';
 import accountUserAssetsRoutes from './user-assets.js';
 import { getAccountCenterFilteredProfile, getScopedProfile } from './utils/get-scoped-profile.js';
-import { isFirstPasswordStepUpRequired } from './first-password-gate.js';
 import { hasSecurityVerificationMethod } from './utils/has-security-verification-method.js';
 
 export default function accountRoutes<T extends UserRouter>(...args: RouterInitArgs<T>) {
@@ -224,9 +223,7 @@ export default function accountRoutes<T extends UserRouter>(...args: RouterInitA
       await assertFirstPartyClient(queries, clientId);
 
       const user = await findUserById(userId);
-      // [NiceMatrix] first-password gate: with NICEMATRIX_FIRST_PASSWORD_STEP_UP=on a user with
-      // no password / email / phone must also present a verified record (social step-up).
-      if (hasSecurityVerificationMethod(user) || isFirstPasswordStepUpRequired()) {
+      if (hasSecurityVerificationMethod(user)) {
         assertThat(
           identityVerified,
           new RequestError({ code: 'verification_record.permission_denied', status: 401 })

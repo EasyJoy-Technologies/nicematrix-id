@@ -28,8 +28,7 @@ Changelog: `changelog/logto-account-center-batch-20260929.md` (per-file table, s
 | `core/libraries/social-step-up.ts`, `core/routes/account/social-step-up.ts` | **new (ours)** | re-verify with the linked third-party account |
 | `core/middleware/koa-auth/koa-oidc-auth.ts` | **new override** | Social records count as verified only via `social-step-up.ts` rules |
 | `core/routes/admin-user/verification-records.ts` | override (extended) | same rule on the admin assert route |
-| `core/routes/account/first-password-gate.ts` | **new (ours)** | `NICEMATRIX_FIRST_PASSWORD_STEP_UP` (default off) |
-| `core/routes/account/index.ts` | override (extended) | mounts the two new route files; first-password gate on `POST /password` |
+| `core/routes/account/index.ts` | override (extended) | mounts the two new route files (`POST /password` = upstream) |
 | `core/libraries/apple-authorization-capture.ts`, `core/libraries/social.ts` | **new (ours)** / **new override** | Apple one-time code → `nicematrix_apple_authorization_codes` for Backend revocation |
 
 ### Passkey suggestion page: auto-skip on browsers without WebAuthn (2026-09-17)

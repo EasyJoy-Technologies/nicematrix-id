@@ -77,7 +77,7 @@ No dist bundle patching is used in the active workflow.
 
 11. 账户中心整改批次（2026-09-29，决策：Xianglin；NiceNote 审查 §10）：
     - 备份码原子替换、TOTP `otpauthUri`、用已绑定第三方账号验证身份（social step-up，使用时再校验）、
-      首次设密码门槛（`NICEMATRIX_FIRST_PASSWORD_STEP_UP`，默认 off）、Apple 授权码交给 Backend 用于撤销、
+      Apple 授权码交给 Backend 用于撤销、
       错误码文案 4 locale。
     - Schema：`sql/20260929_apple_authorization_codes.sql`（先于镜像应用）。
     - 文件清单与部署顺序：`logto-custom/README.md`「Account-center batch」+

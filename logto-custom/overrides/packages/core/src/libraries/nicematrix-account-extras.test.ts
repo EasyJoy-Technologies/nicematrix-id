@@ -1,10 +1,7 @@
 /**
- * [NiceMatrix] pure helpers added 2026-09-29: TOTP enrollment URI, Apple authorization capture,
- * first-password gate.
+ * [NiceMatrix] pure helpers added 2026-09-29: TOTP enrollment URI, Apple authorization capture.
  */
 import type { SocialUserInfo } from '@logto/connector-kit';
-
-import { isFirstPasswordStepUpRequired } from '#src/routes/account/first-password-gate.js';
 
 import {
   captureAppleAuthorization,
@@ -80,13 +77,5 @@ describe('apple-authorization-capture', () => {
     const skipped = { query: jest.fn() };
     await captureAppleAuthorization(skipped as never, 'wechat', userInfo(raw));
     expect(skipped.query).not.toHaveBeenCalled();
-  });
-});
-
-describe('first-password gate', () => {
-  it('is off unless explicitly on', () => {
-    expect(isFirstPasswordStepUpRequired({})).toBe(false);
-    expect(isFirstPasswordStepUpRequired({ NICEMATRIX_FIRST_PASSWORD_STEP_UP: 'off' })).toBe(false);
-    expect(isFirstPasswordStepUpRequired({ NICEMATRIX_FIRST_PASSWORD_STEP_UP: ' ON ' })).toBe(true);
   });
 });

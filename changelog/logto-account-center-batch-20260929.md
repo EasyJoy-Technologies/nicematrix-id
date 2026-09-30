@@ -42,3 +42,9 @@ Migrations → Backend → Logto image. Rollback: image + Backend first, `.down.
 - Schema applied on staging + prod-1 (x2, idempotent); only `systems` / `service_logs` lack RLS.
 - Verified: discovery 200 / status 204 / JWKS 200, server_error 0, new routes 401 (control 404), `/account/deletion/verify` 200,
   token endpoint serving after the switch. `NICEMATRIX_FIRST_PASSWORD_STEP_UP` not set (off).
+
+## 2026-09-30 — first-password gate removed (decision: Xianglin)
+- A social re-auth is as easy for whoever holds the device as the login itself, so the gate added friction without
+  protection. `first-password-gate.ts` deleted; `POST /api/my-account/password` is back to exact upstream logic.
+- Runtime unchanged: the deployed image (release-71a7b5c) had the flag unset (= upstream behaviour). The removal
+  ships with the next Logto image build; no rebuild needed for it alone.
