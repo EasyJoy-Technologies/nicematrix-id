@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS nicematrix_apple_authorization_codes (
 CREATE INDEX IF NOT EXISTS nicematrix_apple_authorization_codes__created
   ON nicematrix_apple_authorization_codes (created_at);
 
+-- Logto refuses to start unless EVERY public table has row-level security enabled
+-- (packages/core/src/env-set/preconditions.ts). No policy on purpose: the Logto owner role (superuser)
+-- and nicematrix_backend_maintenance both have BYPASSRLS; any other role is denied by default.
+ALTER TABLE nicematrix_apple_authorization_codes ENABLE ROW LEVEL SECURITY;
+
 COMMENT ON TABLE nicematrix_apple_authorization_codes IS
   'NiceMatrix: Apple one-time authorization codes awaiting exchange by NiceMatrix Backend (prod-1).';
 

@@ -20,6 +20,14 @@ Ships together with `c76ee72` (deletion `executing` state + `/deletion/verify`).
   (`users.updated_at`, `users.password_updated_at`) for `nicematrix_backend_maintenance`. Idempotent,
   additive. Apply **before** the image (plus `20260929_user_deletion_executing.sql` from `c76ee72`).
 
+**RLS (fixed 2026-09-30 after the first staging attempt)**: Logto refuses to start unless every public
+table has row-level security enabled (`core/src/env-set/preconditions.ts`). The first version of the
+migration created the table without it → the new image AND the rolled-back image crash-looped on staging
+(~5 min outage, restored by dropping the empty table). The migration now runs
+`ALTER TABLE … ENABLE ROW LEVEL SECURITY` (no policy: the Logto owner and `nicematrix_backend_maintenance`
+both have BYPASSRLS on staging and prod-1; other roles are denied). `scripts/check.sh` now fails on any
+`CREATE TABLE` in `sql/` without it. The image is unaffected (SQL is not baked in).
+
 ## Deploy order / rollback
 Migrations → Backend → Logto image. Rollback: image + Backend first, `.down.sql` last.
 
