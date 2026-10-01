@@ -30,3 +30,11 @@
   显式开启覆盖所致）；Experience 相关 27 套件 196 例全过；Account 安全页与 utils 10 套件全过 + carrier 排除 2 例（App/Callback
   6 例失败为既有，换回上游文件同样失败）。
 - 真实 Logto 加载器（`@logto/cli` loadConnector + validateConnectorModule + parseMetadata）可加载连接器。
+
+## 部署（2026-10-01 UTC）
+- staging `id-staging`：镜像 `release-36bfc9f…-20261001-013903`（rollback `rollback-staging-20261001-021657`），staging 连接器 `1li8tya041mx`，
+  `NICEMATRIX_CARRIER_BROKER_URLS={"cn":"https://api-staging.nicematrix.com"}`；mock 全链 e2e 通过。
+- prod-1 `id.nicematrix.com`（= 两区）：同一镜像（md5 / RootFS layers 一致，血缘探针仅 connectors 49→50），rollback
+  `nicematrix-logto:rollback-prod-1-20261001-043649`；`id.env` + 运行目录 compose 已加 carrier 段（备份后缀 `20261001T043602Z-carrier`）；
+  连接器 `byqbtziaujxv` 已入 SIE。无参数登录页上线前后一致；launch context → cn Broker 验签、consume 密钥均已在生产验证。
+  cn 总开关关闭，对用户不可见。
