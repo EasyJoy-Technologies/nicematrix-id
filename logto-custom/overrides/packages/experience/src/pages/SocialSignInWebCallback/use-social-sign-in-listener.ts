@@ -32,13 +32,26 @@ import { validateGoogleOneTapCredential } from '@/utils/social-connectors';
 
 import { normalizeExternalWebsiteGoogleOneTapConnectorData } from './utils';
 // [NiceMatrix] App-context error hand-off + QQ ICP callback origin.
+import {
+  disableCarrier,
+  isCarrierTarget,
+  isDisablingFailure,
+  parseCarrierFailure,
+  readCarrierContext,
+} from '@/utils/carrier-capability';
+import { carrierFailureMessage } from '@/utils/carrier-phrases';
 import { buildErrorHandoffUrl } from '@/utils/native-caps';
 import { getSocialCallbackUri } from '@/utils/social-redirect-override';
 
 const useSocialSignInListener = (connectorId: string) => {
   const [loading, setLoading] = useState(true);
   const { setToast } = useToast();
-  const { signInMode, socialSignInSettings } = useSieMethods();
+  const { signInMode, socialSignInSettings, socialConnectors } = useSieMethods();
+  // [NiceMatrix] carrier one-tap login connector? (target `carrier`)
+  const isCarrier = useMemo(
+    () => socialConnectors.some(({ id, target }) => id === connectorId && isCarrierTarget(target)),
+    [connectorId, socialConnectors]
+  );
   const { t } = useTranslation();
   const [isConsumed, setIsConsumed] = useState(false);
   const [searchParameters, setSearchParameters] = useSearchParams();
@@ -81,7 +94,10 @@ const useSocialSignInListener = (connectorId: string) => {
       }
 
       if (relatedUser) {
-        if (socialSignInSettings.automaticAccountLinking) {
+        // [NiceMatrix] Carrier proves control of the number, exactly like an SMS
+        // code: link to the user who CURRENTLY owns it, without enabling the
+        // tenant-wide automaticAccountLinking for Apple / Google (plan §9.3).
+        if (socialSignInSettings.automaticAccountLinking || (isCarrier && relatedUser.type === 'phone')) {
           await bindSocialRelatedUser(verificationId);
         } else {
           navigate(`/social/link/${connectorId}`, {
@@ -106,6 +122,7 @@ const useSocialSignInListener = (connectorId: string) => {
     [
       bindSocialRelatedUser,
       connectorId,
+      isCarrier,
       navigate,
       navigateToSignIn,
       registerWithSocial,
@@ -249,6 +266,25 @@ const useSocialSignInListener = (connectorId: string) => {
       // === Normal OAuth redirect flow (social) ===
       const result = validateAndRestore(state);
 
+      // [NiceMatrix] Carrier Broker error callback (cancel / provider failure):
+      // back to THIS interaction's sign-in page, never a verify call. Cancel is
+      // silent; terminal classes hide carrier for the rest of this sign-in.
+      if (isCarrier && result.valid && typeof data.error === 'string') {
+        const failureClass = parseCarrierFailure(data.error_description);
+        const context = readCarrierContext();
+
+        if (context && isDisablingFailure(failureClass)) {
+          disableCarrier(context);
+        }
+
+        if (failureClass !== 'user_cancelled') {
+          setToast(carrierFailureMessage(failureClass));
+        }
+
+        navigateToSignIn();
+        return;
+      }
+
       if (!result.valid) {
         // [NiceMatrix] Bug-A defence layer:
         // When this SPA is rendered inside ASWebAuthenticationSession / Chrome
@@ -276,8 +312,10 @@ const useSocialSignInListener = (connectorId: string) => {
     void signInWithSocialHandler(connectorId, data);
   }, [
     connectorId,
+    isCarrier,
     isConsumed,
     navigate,
+    navigateToSignIn,
     searchParameters,
     setSearchParameters,
     setToast,

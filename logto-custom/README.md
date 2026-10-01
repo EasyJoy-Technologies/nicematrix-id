@@ -14,6 +14,20 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Carrier one-tap login 本机号码一键登录 (2026-09-30)
+
+Changelog: `changelog/logto-carrier-one-tap-20260930.md` · inventory: `docs/patches.md` #11.
+
+| File | Kind | Change |
+|---|---|---|
+| `schemas/src/consts/oidc.ts`, `core/src/oidc/utils.ts` | override (extended) | ExtraParams `carrier_mode` / `carrier_challenge` + forwarded to the SPA |
+| `core/src/libraries/carrier-launch-context.ts` | **new (ours)** | HS256 launch context from the server-side interaction |
+| `core/src/libraries/verification-helpers/social-verification.ts` | **new override** | target `carrier` only: `scope` = launch context |
+| `experience/src/utils/carrier-capability.ts`, `carrier-phrases.ts` | **new (ours)** | capture / one-time auto prompt / manual retries / three-language toasts |
+| `experience/…/search-parameters.ts`, `sign-in-experience.ts`, `SocialSignInList/index.tsx`, `use-social.ts`, `use-social-sign-in-listener.ts` | override (extended) | invisible unless the App declared carrier; replace navigation; error callback back to `/sign-in`; phone auto-link |
+| `account/src/utils/social-connector.ts` | **new override** | Account Center never offers carrier |
+| `logto-custom/connectors/connector-carrier/` + `Dockerfile` | **new (ours)** | connector copied into `packages/core/connectors` after the prod install (no lockfile change) |
+
 ### Account-center batch (2026-09-29)
 
 Changelog: `changelog/logto-account-center-batch-20260929.md` (per-file table, schema, deploy order).

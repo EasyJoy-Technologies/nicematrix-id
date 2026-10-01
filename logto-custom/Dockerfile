@@ -14,6 +14,12 @@ COPY logto-upstream/ .
 COPY logto-custom/overrides/ /tmp/overrides/
 RUN if [ -d /tmp/overrides ]; then rsync -a /tmp/overrides/ /etc/logto/; fi
 
+# 3) NiceMatrix-owned connectors (plain ESM, no build step). Installed AFTER the
+#    production reinstall below, straight into packages/core/connectors, so their
+#    imports (@logto/connector-kit, zod) resolve from packages/core/node_modules and
+#    upstream's frozen pnpm lockfile stays untouched.
+COPY logto-custom/connectors/ /tmp/nmx-connectors/
+
 # Build args aligned with upstream Dockerfile behavior
 # Default to "true" — NiceMatrix always needs dev features (Account Center, social linking, etc.)
 ARG dev_features_enabled=true
@@ -35,6 +41,8 @@ RUN pnpm cli connector link $ADDITIONAL_CONNECTOR_ARGS -p .
 
 RUN rm -rf node_modules packages/**/node_modules
 RUN NODE_ENV=production pnpm i
+RUN cp -R /tmp/nmx-connectors/connector-carrier packages/core/connectors/connector-carrier \
+ && test -f packages/core/connectors/connector-carrier/lib/index.js
 RUN rm -rf .scripts pnpm-*.yaml packages/cloud
 
 ###### [STAGE] Seal ######

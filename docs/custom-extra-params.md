@@ -1,4 +1,4 @@
-# Logto 自定义 ExtraParams：device_ref / app_slug / native_caps / native_scheme / region
+# Logto 自定义 ExtraParams：device_ref / app_slug / native_caps / native_scheme / region / carrier_mode / carrier_challenge
 
 ## 改动目的
 
@@ -160,3 +160,18 @@ hidden  = ¬visible
 > 纯前端显隐：`/.well-known/experience` 响应**仍包含**被隐藏的连接器（只是不渲染）。这是有意选择 —— 满足"区域差异化按钮"诉求且不触碰服务端配置（决策：Xianglin，2026-06-17）。
 
 单元测试：`logto-custom/tests/test-native-caps.js`（`bash logto-custom/tests/run.sh`）。
+
+
+## carrier_mode / carrier_challenge（本机号码一键登录，2026-09-30）
+
+| 参数 | 取值 | 作用 |
+|---|---|---|
+| `carrier_mode` | `h5` / `native` | App 声明本次登录可用的号码认证模式；缺失 = 本次登录不存在号码认证 |
+| `carrier_challenge` | 43 位 base64url（`BASE64URL(SHA256(carrier_verifier))`） | 绑定 App 的 attempt；也是“只自动弹一次”的键 |
+
+- 与 `app_slug` 一样需要被 SPA 读到 → `buildLoginPromptUrl()` 各加 1 个 `appendExtraParam`；同时经 `interactionDetails.params`
+  进入 Core override 签发的 launch context（`core/src/libraries/carrier-launch-context.ts`）。
+- SPA 侧：`experience/src/utils/carrier-capability.ts` 在 boot 时捕获到 sessionStorage 并从 URL 去除；新的授权入口
+  （URL 带 `app_id` 或 carrier 参数）总是重写，避免同一标签页里的旧上下文残留。
+- 自动进入另需上游参数 `direct_sign_in=social:carrier`（首屏 `/direct/social/carrier?fallback=sign-in`）。
+- 客户端约定与完整流程：nicematrix-backend `docs/integration/carrier-one-tap.md`。

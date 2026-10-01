@@ -2,6 +2,7 @@ import {
   AgreeToTermsPolicy,
   ConnectorPlatform,
   VerificationType,
+  experience,
   type ExperienceSocialConnector,
 } from '@logto/schemas';
 import { useCallback, useContext } from 'react';
@@ -13,12 +14,30 @@ import useApi from '@/hooks/use-api';
 import useErrorHandler from '@/hooks/use-error-handler';
 import useGlobalRedirectTo from '@/hooks/use-global-redirect-to';
 import useTerms from '@/hooks/use-terms';
+import useToast from '@/hooks/use-toast';
 import { searchKeys } from '@/shared/utils/search-parameters';
+import {
+  claimAutoPrompt,
+  claimManualAttempt,
+  isCarrierDisabled,
+  isCarrierTarget,
+  readCarrierContext,
+} from '@/utils/carrier-capability';
+import { carrierRetryLimitMessage } from '@/utils/carrier-phrases';
 import { buildTakeoverUrl } from '@/utils/native-caps';
 import { getLogtoNativeSdk, isNativeWebview } from '@/utils/native-sdk';
 import { generateState, storeState, buildSocialLandingUri } from '@/utils/social-connectors';
 import { storeRedirectContext } from '@/utils/social-redirect-fallback-context';
 import { getSocialCallbackUri } from '@/utils/social-redirect-override';
+
+// NiceMatrix carrier one-tap login: any carrier dead end on the DirectSignIn
+// page goes to the ordinary sign-in page of the SAME interaction (replace, so
+// Back never re-enters the auto prompt). Elsewhere the user simply stays.
+const leaveCarrierDirectPage = () => {
+  if (window.location.pathname.startsWith('/direct/')) {
+    window.location.replace('/' + experience.routes.signIn);
+  }
+};
 
 const useSocial = () => {
   const { experienceSettings, theme } = useContext(PageContext);
@@ -27,6 +46,36 @@ const useSocial = () => {
   const asyncInvokeSocialSignIn = useApi(getSocialAuthorizationUrl);
   const { termsValidation, agreeToTermsPolicy } = useTerms();
   const { setVerificationId } = useContext(UserInteractionContext);
+  const { setToast } = useToast();
+
+  /**
+   * NiceMatrix carrier gate (plan §6.2). Auto prompt (DirectSignIn) happens at
+   * most ONCE per sign-in, keyed by the challenge in sessionStorage (upstream's
+   * in-memory ref is lost on Back / refresh). The list button is a manual h5
+   * retry, capped per sign-in. A disabled or absent context never proceeds.
+   */
+  const passCarrierGate = useCallback((): boolean => {
+    const context = readCarrierContext();
+
+    if (!context || isCarrierDisabled(context)) {
+      return false;
+    }
+
+    if (window.location.pathname.startsWith('/direct/')) {
+      return claimAutoPrompt(context);
+    }
+
+    if (context.mode !== 'h5') {
+      return false;
+    }
+
+    if (!claimManualAttempt(context)) {
+      setToast(carrierRetryLimitMessage());
+      return false;
+    }
+
+    return true;
+  }, [setToast]);
 
   const redirectTo = useGlobalRedirectTo({
     shouldClearInteractionContextSession: false,
@@ -52,11 +101,22 @@ const useSocial = () => {
 
   const invokeSocialSignInHandler = useCallback(
     async (connector: ExperienceSocialConnector) => {
+      const isCarrier = isCarrierTarget(connector.target);
+
+      if (isCarrier && !passCarrierGate()) {
+        leaveCarrierDirectPage();
+        return;
+      }
+
       /**
        * Check if the user has agreed to the terms and privacy policy before navigating to the 3rd-party social sign-in page
        * when the policy is set to `Manual`
        */
       if (agreeToTermsPolicy === AgreeToTermsPolicy.Manual && !(await termsValidation())) {
+        if (isCarrier) {
+          leaveCarrierDirectPage();
+        }
+
         return;
       }
 
@@ -90,10 +150,18 @@ const useSocial = () => {
       if (error) {
         await handleError(error);
 
+        if (isCarrier) {
+          leaveCarrierDirectPage();
+        }
+
         return;
       }
 
       if (!result) {
+        if (isCarrier) {
+          leaveCarrierDirectPage();
+        }
+
         return;
       }
 
@@ -112,6 +180,14 @@ const useSocial = () => {
         uiLocales: sessionStorage.getItem(searchKeys.uiLocales) ?? undefined,
       });
 
+      // NiceMatrix carrier: the Broker is an intermediate hop of THIS interaction —
+      // replace (not push) so Back from the Broker never re-runs the auto prompt.
+      if (isCarrier) {
+        window.location.replace(authorizationUri);
+
+        return;
+      }
+
       // Invoke native social sign-in flow
       if (isNativeWebview()) {
         nativeSignInHandler(authorizationUri, connector);
@@ -127,6 +203,7 @@ const useSocial = () => {
       asyncInvokeSocialSignIn,
       handleError,
       nativeSignInHandler,
+      passCarrierGate,
       redirectTo,
       setVerificationId,
       termsValidation,

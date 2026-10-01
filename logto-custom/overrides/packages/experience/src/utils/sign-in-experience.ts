@@ -25,6 +25,7 @@ import i18next from 'i18next';
 import { getSignInExperience } from '@/apis/settings';
 import { searchKeys, searchKeysCamelCase } from '@/shared/utils/search-parameters';
 import type { SignInExperienceResponse } from '@/types';
+import { isCarrierTarget, shouldListCarrierConnector } from '@/utils/carrier-capability';
 import { shouldHideSocialTarget } from '@/utils/native-caps';
 import { filterSocialConnectors } from '@/utils/social-connectors';
 
@@ -36,8 +37,14 @@ const parseSignInExperienceResponse = (
   // Upstream platform-based filter first…
   const platformFiltered = filterSocialConnectors(socialConnectors);
   // …then the NiceMatrix region-aware show/hide rule.
+  // [NiceMatrix] Carrier one-tap login exists only when the App declared it
+  // (carrier_mode + carrier_challenge); otherwise the connector is removed here,
+  // so the page is identical to one without carrier (plan §6.0).
+  const carrierListed = shouldListCarrierConnector();
   const visibleSocialConnectors = platformFiltered.filter(
-    (connector) => !shouldHideSocialTarget(connector.target)
+    (connector) =>
+      !shouldHideSocialTarget(connector.target) &&
+      (carrierListed || !isCarrierTarget(connector.target))
   );
 
   // [NiceMatrix] If the Google connector is hidden by the rule, also suppress the

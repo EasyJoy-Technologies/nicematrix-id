@@ -2,8 +2,8 @@
  * [NiceMatrix override] vs upstream: this file is a near-verbatim copy of
  *   logto-upstream/packages/core/src/oidc/utils.ts (1.39.0)
  * with ONE delta block inside `buildLoginPromptUrl()`:
- *   +5 appendExtraParam(...) calls for AppSlug / NativeCaps / NativeScheme /
- *   HideSocial / ShowSocial.
+ *   +7 appendExtraParam(...) calls for AppSlug / NativeCaps / NativeScheme /
+ *   HideSocial / ShowSocial / CarrierMode / CarrierChallenge.
  * Search this file for the `[NiceMatrix override]` marker to find the delta.
  * On upstream sync, re-diff against upstream and re-apply the marker block only.
  */
@@ -388,6 +388,11 @@ export const buildLoginPromptUrl = (
   // byte-identical to upstream.
   appendExtraParam(ExtraParamsKey.HideSocial);
   appendExtraParam(ExtraParamsKey.ShowSocial);
+  // [NiceMatrix override] Carrier one-tap login: forward the App-declared mode +
+  // challenge so the experience SPA can capture them (carrier-capability.ts).
+  // Absent on every non-carrier entry = byte-identical to upstream.
+  appendExtraParam(ExtraParamsKey.CarrierMode);
+  appendExtraParam(ExtraParamsKey.CarrierChallenge);
 
   // Reuse DirectSignIn page to handle Google One Tap credential.
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing

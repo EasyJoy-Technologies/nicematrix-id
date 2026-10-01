@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import SocialLinkButton from '@/components/Button/SocialLinkButton';
 import useNativeMessageListener from '@/hooks/use-native-message-listener';
 import { getLogoUrl } from '@/shared/utils/logo';
+import { isCarrierTarget, shouldShowCarrierButton } from '@/utils/carrier-capability';
 import { shouldHideTarget } from '@/utils/native-caps';
 
 import styles from './index.module.scss';
@@ -25,8 +26,14 @@ const SocialSignInList = ({ className, socialConnectors = [] }: Props) => {
   // declared `native_caps` and the given target is NOT among them. PC browsers
   // and any non-App entry see the upstream button list unchanged because
   // shouldHideTarget returns false when no App context is present.
+  // NiceMatrix carrier one-tap login: the connector stays in the SIE list (the
+  // DirectSignIn auto prompt needs it) but its button is only a MANUAL retry
+  // entry for h5 sign-ins that still have attempts left.
   const visibleConnectors = useMemo(
-    () => socialConnectors.filter((c) => !shouldHideTarget(c.target)),
+    () =>
+      socialConnectors.filter(
+        (c) => !shouldHideTarget(c.target) && (!isCarrierTarget(c.target) || shouldShowCarrierButton())
+      ),
     [socialConnectors]
   );
 

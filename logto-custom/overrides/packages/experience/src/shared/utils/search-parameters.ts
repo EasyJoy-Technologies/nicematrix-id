@@ -1,5 +1,6 @@
 import { condString } from '@silverhand/essentials';
 
+import { captureCarrierParamsFromUrl } from '@/utils/carrier-capability';
 import { captureNativeCapsFromUrl } from '@/utils/native-caps';
 
 export const searchKeysCamelCase = Object.freeze(['organizationId', 'appId', 'uiLocales'] as const);
@@ -40,6 +41,8 @@ export const handleSearchParametersData = () => {
   // (App-handoff metadata for 方案 X) so the upstream strip below doesn't drop
   // them. Safe no-op when params are absent — PC / non-App entries unaffected.
   captureNativeCapsFromUrl();
+  // NiceMatrix override: carrier one-tap login mode + challenge (carrier-capability.ts).
+  captureCarrierParamsFromUrl();
 
   const { search } = window.location;
 

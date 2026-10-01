@@ -167,3 +167,26 @@ No dist bundle patching is used in the active workflow.
     - 空值 caveat：`hide_social=` / `show_social=`（空）经 OIDC 流被 `appendExtraParam` 跳过转发 = passthrough（全显示）；每个参数必须带 ≥1 target。
     - **部署（2026-06-17）**：staging `id-staging`（image `a09568b35463`）+ prod-1 `id.nicematrix.com`（image config `437265c852fc`，`docker save`→scp md5 `4fdbac85e17d` 校验一致→force-recreate）均 healthy。两环境各跑 7 例真实 OIDC headless e2e 全过（hide/show/优先级/隐藏全部时分隔线消失/passthrough），0 日志错误。prod-1 回滚 tag：`nicematrix-logto:pre-social-visibility-rollback` = `90dc641ca8a4`。
     - **客户端用法**：iOS/Android/Flutter 在 `/oidc/auth` authorization 请求的 extra params 里加 `hide_social` / `show_social`。
+
+11. 本机号码一键登录 Carrier（2026-09-30，方案 nicematrix-backend `docs/_plans/2026-09-14_carrier-one-tap-login-browser-retention.md` v0.8.2 §5.7 L1–L9）：
+    - ExtraParams：`packages/schemas/src/consts/oidc.ts`（`CarrierMode` / `CarrierChallenge`）+ `packages/core/src/oidc/utils.ts`
+      （`buildLoginPromptUrl` +2 `appendExtraParam`）。
+    - Core（**新** override）：`packages/core/src/libraries/verification-helpers/social-verification.ts` —— 仅 target `carrier`
+      时把 `scope` 换成服务端 interaction 签发的 launch context（`packages/core/src/libraries/carrier-launch-context.ts`，
+      ours，HS256 ≤60 s，key `INTERNAL_SERVICE_HMAC_KEY_CARRIER_LAUNCH`）。其余连接器与上游逐字节一致。
+    - Experience：`utils/carrier-capability.ts`（ours：capture/strip、一次性自动弹出、手动重试 ≤3、禁用标记）、
+      `utils/carrier-phrases.ts`（ours：三语 toast）；`shared/utils/search-parameters.ts`（boot capture）、
+      `utils/sign-in-experience.ts`（无声明时从 SIE 列表移除 carrier）、`containers/SocialSignInList/index.tsx`（按钮仅 h5 手动入口）、
+      `containers/SocialSignInList/use-social.ts`（carrier 闸门 + replace 跳转 + 失败回 /sign-in）、
+      `pages/SocialSignInWebCallback/use-social-sign-in-listener.ts`（错误回调：取消静默 / 三语提示 / 禁用；
+      `relatedUser.type==='phone'` 自动关联，不开全局 automaticAccountLinking）。
+    - Account Center（**新** override）：`packages/account/src/utils/social-connector.ts` —— 绑定列表与
+      `hasVisibleSocialSection` 同时排除 carrier（方案写的是 SocialSection；改在其唯一数据源，覆盖面更全、改动更小）。
+    - Connector（ours，非 workspace 包）：`logto-custom/connectors/connector-carrier/`（纯 ESM，无构建步骤）。
+      `logto-custom/Dockerfile` 在生产依赖重装后把它复制进 `packages/core/connectors/`，依赖从 core 的 node_modules
+      解析——**不改上游 pnpm lockfile**。
+    - 都不传 `carrier_mode` + `carrier_challenge` = 与没有号码认证完全一致（SIE 列表里也没有 carrier）。
+    - 单测：`tests/test-connector-carrier.mjs`（run.sh）、`experience/src/utils/carrier-capability.test.ts`、
+      `core/src/libraries/carrier-launch-context.test.ts`、`account/src/utils/social-connector.carrier.test.ts`。
+    - 升级时：重新 diff 上述两个**新** override（social-verification.ts、account social-connector.ts）；确认
+      `connector-kit` 的 `GetAuthorizationUri` payload 仍有 `scope`、`ConnectorErrorCodes` 名称未变。

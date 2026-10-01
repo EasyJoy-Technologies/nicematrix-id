@@ -1,0 +1,14 @@
+{
+  "name": "@nicematrix/connector-carrier",
+  "version": "1.0.0",
+  "description": "NiceMatrix carrier one-tap login (本机号码一键登录) social connector. Not a Logto built-in.",
+  "private": true,
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": "./lib/index.js",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@logto/connector-kit": "^5.1.1",
+    "zod": "3.24.3"
+  }
+}

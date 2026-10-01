@@ -130,6 +130,18 @@ export enum ExtraParamsKey {
    * device-routing design (§6) and `packages/core/src/libraries/hook/index.ts`.
    */
   Region = 'region',
+  /**
+   * [NiceMatrix] Carrier one-tap login (本机号码一键登录) mode declared by the App:
+   * `h5` (Browser Broker + provider JS-SDK) or `native` (App SDK verified before
+   * the browser opened). Absent = carrier login does not exist for this sign-in.
+   * See `packages/experience/src/utils/carrier-capability.ts`.
+   */
+  CarrierMode = 'carrier_mode',
+  /**
+   * [NiceMatrix] BASE64URL(SHA256(carrier_verifier)) — binds the browser
+   * interaction to the App's carrier attempt and keys the auto-prompt guard.
+   */
+  CarrierChallenge = 'carrier_challenge',
 }
 
 /** @deprecated Use {@link FirstScreen} instead. */
@@ -167,6 +179,8 @@ export const extraParamsObjectGuard = z
     [ExtraParamsKey.HideSocial]: z.string(),
     [ExtraParamsKey.ShowSocial]: z.string(),
     [ExtraParamsKey.Region]: z.string(),
+    [ExtraParamsKey.CarrierMode]: z.string(),
+    [ExtraParamsKey.CarrierChallenge]: z.string(),
   })
   .partial() satisfies ToZodObject<ExtraParamsObject>;
 
@@ -187,4 +201,6 @@ export type ExtraParamsObject = Partial<{
   [ExtraParamsKey.HideSocial]: string;
   [ExtraParamsKey.ShowSocial]: string;
   [ExtraParamsKey.Region]: string;
+  [ExtraParamsKey.CarrierMode]: string;
+  [ExtraParamsKey.CarrierChallenge]: string;
 }>;
