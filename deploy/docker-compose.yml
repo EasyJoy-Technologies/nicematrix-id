@@ -68,6 +68,13 @@ services:
       # (e.g. OneDrive access/refresh) at rest. NEVER rotate: rotation makes all
       # previously stored tokens permanently undecryptable. Value lives in id.env.
       SECRET_VAULT_KEK: ${SECRET_VAULT_KEK}
+      # Carrier one-tap login (本机号码一键登录). Service-auth purpose keys shared ONLY
+      # with the cn Backend (never the shared cn<->intl internal key); the broker
+      # override is staging-only. Unset = carrier login unavailable, every other
+      # login unaffected. See backend docs/architecture/carrier-one-tap.md.
+      INTERNAL_SERVICE_HMAC_KEY_CARRIER_LAUNCH: ${INTERNAL_SERVICE_HMAC_KEY_CARRIER_LAUNCH:-}
+      INTERNAL_SERVICE_HMAC_KEY_CARRIER_CONSUME: ${INTERNAL_SERVICE_HMAC_KEY_CARRIER_CONSUME:-}
+      NICEMATRIX_CARRIER_BROKER_URLS: ${NICEMATRIX_CARRIER_BROKER_URLS:-}
     ports:
       - "127.0.0.1:3001:${LOGTO_PORT}"
 
