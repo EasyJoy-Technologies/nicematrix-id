@@ -5,6 +5,7 @@
  */
 import { InteractionEvent } from '@logto/schemas';
 import { fireEvent, waitFor } from '@testing-library/react';
+import { HTTPError } from 'ky';
 import { Route, Routes } from 'react-router-dom';
 
 import renderWithPageContext from '@/__mocks__/RenderWithPageContext';
@@ -65,6 +66,31 @@ describe('Continue — carrier sign-up skip', () => {
 
     await waitFor(() => {
       expect(skipCarrierProfile).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('number taken meanwhile → retry toast and back to sign-in', async () => {
+    declareCarrier();
+    jest.mocked(fetchCarrierSkippable).mockResolvedValue({ skippable: true });
+    jest.mocked(skipCarrierProfile).mockRejectedValue(
+      new HTTPError(
+        {
+          status: 422,
+          json: async () => ({ code: 'user.phone_already_in_use', message: 'taken' }),
+        } as unknown as Response,
+        {} as Request,
+        {} as never
+      )
+    );
+
+    const { findByText } = renderContinue(InteractionEvent.Register);
+    fireEvent.click(await findByText('action.nav_skip'));
+
+    await waitFor(() => {
+      expect(mockedNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({ pathname: '/sign-in' }),
+        expect.objectContaining({ replace: true })
+      );
     });
   });
 

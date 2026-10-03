@@ -14,16 +14,19 @@
  * is a registration, so every other page / flow makes no extra request and renders
  * exactly like upstream.
  */
-import { InteractionEvent } from '@logto/schemas';
-import { useCallback, useEffect, useState } from 'react';
+import { InteractionEvent, experience } from '@logto/schemas';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { fetchCarrierSkippable, skipCarrierProfile } from '@/apis/carrier-profile-skip';
 import useApi from '@/hooks/use-api';
 import useErrorHandler from '@/hooks/use-error-handler';
 import useGlobalRedirectTo from '@/hooks/use-global-redirect-to';
+import useNavigateWithPreservedSearchParams from '@/hooks/use-navigate-with-preserved-search-params';
 import useSubmitInteractionErrorHandler from '@/hooks/use-submit-interaction-error-handler';
+import useToast from '@/hooks/use-toast';
 import { type ContinueFlowInteractionEvent } from '@/types';
 import { readCarrierContext } from '@/utils/carrier-capability';
+import { carrierFailureMessage } from '@/utils/carrier-phrases';
 
 export const useCarrierProfileSkip = (
   interactionEvent: ContinueFlowInteractionEvent | undefined
@@ -32,9 +35,24 @@ export const useCarrierProfileSkip = (
   const asyncSkip = useApi(skipCarrierProfile);
   const handleError = useErrorHandler();
   const redirectTo = useGlobalRedirectTo();
-  const errorHandlers = useSubmitInteractionErrorHandler(InteractionEvent.Register, {
+  const navigate = useNavigateWithPreservedSearchParams();
+  const { setToast } = useToast();
+  const submitErrorHandlers = useSubmitInteractionErrorHandler(InteractionEvent.Register, {
     replace: true,
   });
+  // The number was taken by another account while this sign-up sat on the profile
+  // page: same outcome as the callback (review CR-03) — "timed out, try again",
+  // back to sign-in; the next carrier sign-in links to that account.
+  const errorHandlers = useMemo(
+    () => ({
+      ...submitErrorHandlers,
+      'user.phone_already_in_use': () => {
+        setToast(carrierFailureMessage('attempt_expired'));
+        navigate('/' + experience.routes.signIn, { replace: true });
+      },
+    }),
+    [navigate, setToast, submitErrorHandlers]
+  );
 
   const isCandidate =
     interactionEvent === InteractionEvent.Register && readCarrierContext() !== null;
