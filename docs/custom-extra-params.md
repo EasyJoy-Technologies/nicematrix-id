@@ -1,4 +1,4 @@
-# Logto 自定义 ExtraParams：device_ref / app_slug / native_caps / native_scheme / region / carrier_mode / carrier_challenge
+# Logto 自定义 ExtraParams：device_ref / app_slug / native_caps / native_scheme / region / carrier_mode / carrier_challenge / app_version
 
 ## 改动目的
 
@@ -175,3 +175,15 @@ hidden  = ¬visible
   （URL 带 `app_id` 或 carrier 参数）总是重写，避免同一标签页里的旧上下文残留。
 - 自动进入另需上游参数 `direct_sign_in=social:carrier`（首屏 `/direct/social/carrier?fallback=sign-in`）。
 - 客户端约定与完整流程：nicematrix-backend `docs/integration/carrier-one-tap.md`。
+
+## app_version / 服务端 prompt=login（号码认证审查修复，2026-10-03）
+
+| 参数 | 取值 | 作用 |
+|---|---|---|
+| `app_version` | 客户端版本，如 `2.1.0`（≤64 位 `[A-Za-z0-9_.+-]`） | 签进 carrier launch context，cn Broker 用于 h5 最低版本校验；格式不合法 = 未声明。**不**转发给 SPA |
+
+- 带合法 `carrier_mode` + `carrier_challenge` 的 `/oidc/auth` 请求，Core 中间件 `koa-carrier-login-prompt.ts` 在 `prompt` 上追加
+  `login`（保留 `consent`）。客户端仍必须自己带 `prompt=login consent`，这只是兜底。
+- 授权请求缺 `client_id` / `app_slug` / `region` 或 carrier 参数不合法：Core 拒签 launch context（`connector.not_enabled`），
+  登录页静默回到无号码认证的普通登录。
+

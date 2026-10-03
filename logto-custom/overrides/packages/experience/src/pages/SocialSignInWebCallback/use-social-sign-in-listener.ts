@@ -75,9 +75,27 @@ const useSocialSignInListener = (connectorId: string) => {
     navigate('/' + experience.routes.signIn, { replace: true });
   }, [navigate]);
 
+  // [NiceMatrix] carrier: Core refuses to create an account without its number
+  // when another account took it meanwhile (concurrent first sign-ins, review
+  // CR-03). Back to this interaction's sign-in page with the "timed out, try
+  // again" toast; the next carrier sign-in links to that account.
+  const carrierRegisterErrorHandlers: ErrorHandlers | undefined = useMemo(
+    () =>
+      isCarrier
+        ? {
+            'user.phone_already_in_use': () => {
+              setToast(carrierFailureMessage('attempt_expired'));
+              navigateToSignIn();
+            },
+          }
+        : undefined,
+    [isCarrier, navigateToSignIn, setToast]
+  );
+
   const registerWithSocial = useSocialRegister(connectorId, {
     replace: true,
     onEmailBlocked: navigateToSignIn,
+    errorHandlers: carrierRegisterErrorHandlers,
   });
 
   const accountNotExistErrorHandler = useCallback(

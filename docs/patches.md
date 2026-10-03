@@ -190,3 +190,28 @@ No dist bundle patching is used in the active workflow.
       `core/src/libraries/carrier-launch-context.test.ts`、`account/src/utils/social-connector.carrier.test.ts`。
     - 升级时：重新 diff 上述两个**新** override（social-verification.ts、account social-connector.ts）；确认
       `connector-kit` 的 `GetAuthorizationUri` payload 仍有 `scope`、`ConnectorErrorCodes` 名称未变。
+
+12. 本机号码一键登录审查修复批 B（2026-10-03，审查 nicematrix-backend `docs/_reviews/2026-10-02-carrier-one-tap-code-review.md` §6 批 B；
+    changelog `changelog/logto-carrier-review-fixes-20261003.md`）：
+    - B1（CR-03/CR-18）Core **新** override `routes/experience/classes/verifications/social-verification.ts`：carrier 新用户的号码已被
+      其他账户占用 → 422 `user.phone_already_in_use`（上游静默丢号）；Experience `hooks/use-social-register.ts`（**新** override，
+      可选 `errorHandlers`）+ 回调监听把它映射为“已超时，请重试”回登录页。其它连接器与上游一致。
+    - B2（CR-07）ExtraParam `app_version`（`schemas/src/consts/oidc.ts`），签进 launch context（格式不合法则不签 = 未声明）；不转发给 SPA。
+    - B3（CR-02）Core **新** ours `middleware/koa-carrier-login-prompt.ts`，由 `oidc/init.ts` override 在 `koaResourceParam()` 之后挂载：
+      GET `/auth` 带合法 `carrier_mode` + `carrier_challenge` 时在 `prompt` 上**追加** `login`（保留 `consent`，不重复）；其它请求不动。
+    - B4（CR-17）`carrier-launch-context.ts`：缺 key / client_id / app_slug / region / 合法 carrier 参数 → `connector.not_enabled`（400，
+      data.carrier=not_supported）；Experience `use-social.ts` 对 carrier 的 `connector.*` 错误静默、禁用本次号码登录、回普通登录页。
+    - B7（CR-14）carrier 新注册补资料可跳过：Core `routes/experience/types.ts`（**新** override，`carrierProfileSkipped`）、
+      `classes/profile.ts`（**新** override：`canSkipForCarrier` / `markCarrierProfileSkipped` / 必填校验放行 / cleanUp 保留标记）、
+      `routes/experience/index.ts`（**新** override，挂载）+ ours `carrier-profile-skip-routes.ts`（GET/POST
+      `/api/experience/profile/carrier-skip`，含 `.openapi.json`）。Experience：ours `apis/carrier-profile-skip.ts`、
+      `hooks/use-carrier-profile-skip.ts`、`utils/carrier-profile-skip-context.ts`；**新** override `pages/Continue/index.tsx`（提供 onSkip）、
+      `Layout/SecondaryPageLayout/index.tsx`（页面无 onSkip 时用 context 的）。“跳过”是上游 NavBar 自带控件与上游文案
+      `action.nav_skip`（en / zh-CN / zh-TW / zh-HK 均已有），无新文案。放行条件：Register + 待建用户的社交身份为 carrier +
+      交互内已记录跳过（只能由该 POST 写入，服务端 interaction 内，浏览器不可伪造）；短信 / 密码 / 其它社交注册、已有用户登录不变；
+      不使用租户级 `skipRequiredIdentifiers`。
+    - 单测：`core/src/middleware/koa-carrier-login-prompt.test.ts`、`core/src/libraries/carrier-launch-context.test.ts`（扩充）、
+      `core/src/routes/experience/classes/verifications/social-verification.carrier.test.ts`、
+      `core/src/routes/experience/classes/profile.carrier.test.ts`、`experience/src/pages/Continue/carrier-skip.test.tsx`。
+    - 升级时：重新 diff 本条所有**新** override（social-verification 验证类、types.ts、profile.ts、experience index.ts、
+      use-social-register.ts、Continue/index.tsx、SecondaryPageLayout/index.tsx）与 `oidc/init.ts` 的挂载行。

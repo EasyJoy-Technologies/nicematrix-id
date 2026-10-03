@@ -14,6 +14,18 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Carrier one-tap review fixes, batch B (2026-10-03)
+
+Changelog: `changelog/logto-carrier-review-fixes-20261003.md` · inventory: `docs/patches.md` #12.
+
+| File | Kind | Change |
+|---|---|---|
+| `core/…/experience/classes/verifications/social-verification.ts` | **new override** | carrier sign-up with a number owned by another user → 422, never a phone-less account |
+| `core/src/middleware/koa-carrier-login-prompt.ts` + `core/src/oidc/init.ts` | **new (ours)** + override (extended) | `/oidc/auth` with carrier params gets `login` appended to `prompt` |
+| `schemas/src/consts/oidc.ts`, `core/src/libraries/carrier-launch-context.ts` | override / ours (extended) | `app_version` signed into the launch context; missing App context → silent `connector.not_enabled` |
+| `core/routes/experience/{types.ts,classes/profile.ts,index.ts}` + `carrier-profile-skip-routes.ts` | **new overrides** + **new (ours)** | carrier sign-up may skip profile completion (server-enforced flag in the interaction) |
+| `experience/{hooks/use-social-register.ts,pages/Continue/index.tsx,Layout/SecondaryPageLayout/index.tsx}` + ours `apis/carrier-profile-skip.ts`, `hooks/use-carrier-profile-skip.ts`, `utils/carrier-profile-skip-context.ts` | **new overrides** + **new (ours)** | upstream NavBar “Skip” on the profile pages of a skippable carrier sign-up; 422 → retry toast |
+
 ### Carrier one-tap login 本机号码一键登录 (2026-09-30)
 
 Changelog: `changelog/logto-carrier-one-tap-20260930.md` · inventory: `docs/patches.md` #11.

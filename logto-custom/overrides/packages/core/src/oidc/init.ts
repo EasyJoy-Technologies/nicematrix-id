@@ -27,6 +27,8 @@ import { type LogtoConfigLibrary } from '#src/libraries/logto-config.js';
 import koaAppSecretTranspilation from '#src/middleware/koa-app-secret-transpilation.js';
 import koaAuditLog, { type WithLogContext } from '#src/middleware/koa-audit-log.js';
 import koaBodyEtag from '#src/middleware/koa-body-etag.js';
+// [NiceMatrix override 2026-10-03] carrier sign-in forces the login prompt (see below).
+import koaCarrierLoginPrompt from '#src/middleware/koa-carrier-login-prompt.js';
 import koaJwksCacheControl from '#src/middleware/koa-jwks-cache-control.js';
 import koaOidcCookies from '#src/middleware/koa-oidc-cookies.js';
 import koaOidcPostToGet from '#src/middleware/koa-oidc-post-to-get.js';
@@ -638,6 +640,14 @@ export default function initOidc(
    * E.g. `?resource=foo,bar` => `?resource=foo&resource=bar`
    */
   oidc.use(koaResourceParam());
+  /**
+   * [NiceMatrix override 2026-10-03] Carrier one-tap login: an authorization request
+   * carrying a valid `carrier_mode` + `carrier_challenge` always gets `login` appended
+   * to `prompt`, so an existing browser session can never answer it with another
+   * account (review CR-02). Registered after `koaOidcPostToGet()` so form POSTs are
+   * covered too; every other request is untouched.
+   */
+  oidc.use(koaCarrierLoginPrompt());
 
   oidc.use(koaAppSecretTranspilation(queries));
   oidc.use(koaJwksCacheControl());

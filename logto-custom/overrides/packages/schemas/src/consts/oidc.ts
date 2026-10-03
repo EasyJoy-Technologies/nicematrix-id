@@ -142,6 +142,13 @@ export enum ExtraParamsKey {
    * interaction to the App's carrier attempt and keys the auto-prompt guard.
    */
   CarrierChallenge = 'carrier_challenge',
+  /**
+   * [NiceMatrix] Client version declared by the App (e.g. `2.1.0`). Signed into the
+   * carrier launch context (server-side, never trusted from the SPA) so the cn
+   * Broker can enforce the per-App minimum version on h5 sign-ins. Not forwarded
+   * to the experience SPA.
+   */
+  AppVersion = 'app_version',
 }
 
 /** @deprecated Use {@link FirstScreen} instead. */
@@ -181,6 +188,7 @@ export const extraParamsObjectGuard = z
     [ExtraParamsKey.Region]: z.string(),
     [ExtraParamsKey.CarrierMode]: z.string(),
     [ExtraParamsKey.CarrierChallenge]: z.string(),
+    [ExtraParamsKey.AppVersion]: z.string(),
   })
   .partial() satisfies ToZodObject<ExtraParamsObject>;
 
@@ -203,4 +211,5 @@ export type ExtraParamsObject = Partial<{
   [ExtraParamsKey.Region]: string;
   [ExtraParamsKey.CarrierMode]: string;
   [ExtraParamsKey.CarrierChallenge]: string;
+  [ExtraParamsKey.AppVersion]: string;
 }>;

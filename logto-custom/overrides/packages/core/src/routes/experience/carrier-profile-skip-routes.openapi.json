@@ -1,0 +1,29 @@
+{
+  "paths": {
+    "/api/experience/profile/carrier-skip": {
+      "get": {
+        "operationId": "GetCarrierProfileSkip",
+        "summary": "Check whether profile completion can be skipped (NiceMatrix carrier sign-up)",
+        "description": "NiceMatrix extension. Returns whether the current interaction is a carrier one-tap sign-up whose user has not been created yet, i.e. whether the remaining sign-up requirements may be skipped.",
+        "responses": {
+          "200": {
+            "description": "`skippable` is true only for a `Register` interaction whose verified social identity is the carrier connector."
+          }
+        }
+      },
+      "post": {
+        "operationId": "SkipCarrierProfile",
+        "summary": "Skip profile completion (NiceMatrix carrier sign-up)",
+        "description": "NiceMatrix extension. Records the user's choice to skip the remaining sign-up requirements (secondary identifiers, password, custom profile fields) for the current carrier one-tap sign-up. Call identification and submit afterwards, as after a completed profile form.",
+        "responses": {
+          "204": {
+            "description": "The skip has been recorded on the current interaction."
+          },
+          "400": {
+            "description": "The current interaction is not a carrier sign-up awaiting profile completion."
+          }
+        }
+      }
+    }
+  }
+}

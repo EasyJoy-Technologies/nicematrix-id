@@ -19,6 +19,7 @@ import { searchKeys } from '@/shared/utils/search-parameters';
 import {
   claimAutoPrompt,
   claimManualAttempt,
+  disableCarrier,
   isCarrierDisabled,
   isCarrierTarget,
   readCarrierContext,
@@ -148,7 +149,31 @@ const useSocial = () => {
       );
 
       if (error) {
-        await handleError(error);
+        // [NiceMatrix] carrier: a `connector.*` error means this sign-in cannot
+        // offer carrier login (Core refused the launch context: App context
+        // missing / no key, or the connector has no Broker for the region) —
+        // behave exactly like `not_supported`: silent, hidden for this sign-in.
+        // Session / guard errors keep upstream handling (review CR-17).
+        await handleError(
+          error,
+          isCarrier
+            ? {
+                global: (body) => {
+                  if (body.code.startsWith('connector.')) {
+                    const context = readCarrierContext();
+
+                    if (context) {
+                      disableCarrier(context);
+                    }
+
+                    return;
+                  }
+
+                  setToast(body.message);
+                },
+              }
+            : undefined
+        );
 
         if (isCarrier) {
           leaveCarrierDirectPage();
