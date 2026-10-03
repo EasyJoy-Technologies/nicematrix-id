@@ -18,8 +18,17 @@
 ## 验证
 - 单测（Logto 工作区 v1.43.0 + 全部 overrides）：新增 / 扩充 `koa-carrier-login-prompt.test.ts`、`carrier-launch-context.test.ts`、
   `social-verification.carrier.test.ts`、`profile.carrier.test.ts`（Core 32 例），`pages/Continue/carrier-skip.test.tsx`（Experience；
-  相关 16 套件 72 例全过）。Core / Experience `tsc` 无新增错误。
+  相关 16 套件 73 例全过）。Core / Experience `tsc` 无新增错误。Core jest 已跑 306/307 套件，11 个失败套件与本批无关（MFA 既有覆盖、
+  管理 API 资源域名覆盖、日期、WebAuthn 依赖、连接池、负载超时；单独运行确认）。`logto-custom/tests/run.sh` 全过。
 - staging 部署与真浏览器 e2e：见下方“部署”。
 
 ## 部署
-- （待写入）
+- staging `id-staging`（2026-10-03）：镜像 `nicematrix-logto:release-89dc59e7f39db66329e43cd1aa77e67cb88b64b5-20261003-181531`
+  （rollback `nicematrix-logto:rollback-staging-20261003-182527`；中间版 `release-8eceff5…-20261003-175527`）。部署后 Logto 日志 0 条错误。
+- staging 真浏览器 e2e 33/33：B3 已有 X 会话 + 号码 Y（仅 `prompt=consent`）→ 进入 Y、拿到 refresh token、`phone_number_verified=true`
+  （旧镜像上同一用例进入 X）；无 carrier 参数仍沿用会话；`prompt=none`+carrier → `invalid_request`；B4 缺 region → 普通登录页、无额外提示；
+  B2 h5 最低版本 2.1.0：`app_version=2.0.0` 回登录页、`2.1.0` 进入 Broker h5 页；B7 en / zh-CN / zh-TW 补资料页显示“Skip / 跳过 / 跳過”，
+  跳过后注册完成（仅手机号 `86…`，无用户名 / 邮箱 / 密码）；填用户名后下一页仍可跳过；用户名注册无跳过、直接调用跳过接口 400；
+  停在补资料页期间号码被占用 → 不产生无号账户，提示超时重试并回登录页。测试数据全部清理。
+- prod-1：待确认（B6）。
+- 补充（`89dc59e`）：补资料跳过时号码被他人占用 → 与回调一致（staging e2e 发现，原先停在原页只显示上游提示）。
