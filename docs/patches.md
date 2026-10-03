@@ -215,3 +215,8 @@ No dist bundle patching is used in the active workflow.
       `core/src/routes/experience/classes/profile.carrier.test.ts`、`experience/src/pages/Continue/carrier-skip.test.tsx`。
     - 升级时：重新 diff 本条所有**新** override（social-verification 验证类、types.ts、profile.ts、experience index.ts、
       use-social-register.ts、Continue/index.tsx、SecondaryPageLayout/index.tsx）与 `oidc/init.ts` 的挂载行。
+
+13. Core Jest 资源保护（2026-10-03）：
+    - Override：`logto-custom/overrides/packages/core/jest.config.js`。
+    - `maxWorkers: 2`，避免 8 核开发主机默认启动 7 个高内存 worker，耗尽主机 RAM 与 Swap。
+    - 保留上游 `workerIdleMemoryLimit: '2.5GB'`；升级时重新复制上游配置，仅重加并发限制及说明。
