@@ -220,3 +220,17 @@ No dist bundle patching is used in the active workflow.
     - Override：`logto-custom/overrides/packages/core/jest.config.js`。
     - `maxWorkers: 2`，避免 8 核开发主机默认启动 7 个高内存 worker，耗尽主机 RAM 与 Swap。
     - 保留上游 `workerIdleMemoryLimit: '2.5GB'`；升级时重新复制上游配置，仅重加并发限制及说明。
+
+14. Core 请求日志脱敏（2026-10-03，审查 nicematrix-backend `docs/_reviews/2026-10-02-carrier-one-tap-code-review.md` CR-04）：
+    - **新** override `core/src/app/init.ts`（仅改 koa-logger `transporter` 一处）+ ours `core/src/utils/request-log-redaction.ts`。
+    - 上游 koa-logger 原样打印 `ctx.originalUrl`，`carrier_challenge`、授权码 `code` 等会写入容器日志。查询串含敏感参数时整段替换为
+      `?<redacted>`（保留路径）；参数表与各主机 nginx `nocreds` 的 map 一致（backend `docs/runbooks/nginx-access-log-redaction.md`）。
+    - 单测 `core/src/utils/request-log-redaction.test.ts`。升级时：重新 diff `app/init.ts`，只重加 import 与 transporter 改动。
+
+15. 审计日志明文密码屏蔽（2026-10-03，决策：Xianglin）：
+    - **新** override `core/src/utils/sensitive-data.ts`：`sanitizeSensitiveDataRecord` 在同级 `type` 为 `password` 时屏蔽 `value`。
+    - 原因：上游 `routes/experience/profile-routes.ts` 把请求体 `{ type: 'password', value }` 原样写进
+      `Interaction.<Event>.Profile.Update` 审计日志；上游只按键名脱敏（`password` / `secret` / `token` …），键名 `value` 漏网 →
+      `logs` 表存明文密码（prod-1 2026-02 起累计 406 行）。改在唯一的脱敏入口（`koa-audit-log` 写入前），任何同形载荷都覆盖。
+    - 单测 `core/src/utils/sensitive-data.password-value.test.ts`；上游 `sensitive-data.test.ts`、`koa-audit-log.test.ts` 不变且通过。
+    - 升级时：重新复制上游 `sensitive-data.ts`，只重加 `isPasswordTypedValue` 与一处 `||`；若上游已修复同类问题则删除本 override。
