@@ -18,7 +18,7 @@
 |---|---|
 | `id.nicematrix.com` | Production |
 | `id-staging.nicematrix.com` | Staging |
-| `id.ej-mobile.cn` | QQ 回调中转（ICP 备案域名）。DNS 指向构建机 `135.181.147.90`，该机 nginx 把**所有路径**原样 302 到 `id.nicematrix.com`，不反代任何 Logto；prod-1 上没有此域名的配置 |
+| `id.ej-mobile.cn` | QQ 回调中转（ICP 备案域名）。DNS（阿里云 hichina，A + AAAA）2026-10-03 起指向 **prod-1**；prod-1 nginx `sites-enabled/id.ej-mobile.cn.conf` 把**所有路径**原样 302 到 `id.nicematrix.com`，不反代任何 Logto。证书 Let's Encrypt HTTP-01 webroot（`/var/www/acme-challenge`），certbot 自动续期 |
 
 容器名在两边都是：`nicematrix-logto`（image: `nicematrix-logto:latest`）+ `nicematrix-id-postgres`。
 
