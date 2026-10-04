@@ -18,7 +18,7 @@
 |---|---|
 | `id.nicematrix.com` | Production |
 | `id-staging.nicematrix.com` | Staging |
-| `id.ej-mobile.cn` | QQ 回调中转（两边 nginx 都有 302 跳转规则） |
+| `id.ej-mobile.cn` | QQ 回调中转（ICP 备案域名）。DNS 指向构建机 `135.181.147.90`，该机 nginx 把**所有路径**原样 302 到 `id.nicematrix.com`，不反代任何 Logto；prod-1 上没有此域名的配置 |
 
 容器名在两边都是：`nicematrix-logto`（image: `nicematrix-logto:latest`）+ `nicematrix-id-postgres`。
 
