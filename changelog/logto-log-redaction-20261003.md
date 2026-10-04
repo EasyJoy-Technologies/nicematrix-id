@@ -18,4 +18,11 @@
 - 2026-09-14（v1.43.0）以前的行另有 Argon2 摘要、M2M `client_secret`、TOTP 秘钥等（上游当时未脱敏），未在本次范围内，见汇报。
 
 ## 部署
-- （见下）
+- 镜像 `nicematrix-logto:release-3bf170e92c5fd1aea01d5ab224e7bfa880b0ddfd-20261003-202038`（含批 B `89dc59e` 全部内容）。
+  生产独有补丁标记计数与旧镜像一致（requestedResources 7 / hookMatchesRegion 2 / by-identity 2 / verification-records 4 /
+  mfaIssuerName 5 / assertFirstPartyClient 34 / connectors 50）。
+- staging（rollback `rollback-staging-20261004-023121`）：请求日志 `carrier_challenge` / `code` → `?<redacted>`、普通查询串原样；
+  真实注册交互提交密码 → 审计行 `value: ******`、全表 0 明文；历史 6 行已清理。
+- prod-1（2026-10-03 20:36 MDT，rollback `rollback-prod-1-20261004-023553`）：md5 / RootFS.Layers 两端一致；healthy，discovery / JWKS 200、
+  status 204，0 错误。生产真实请求验证 `value: ******`、0 明文、未建用户；历史 406 行在事务内清理并校验剩余 0。
+  不带 carrier 参数的登录页换镜像前后 6 组截图逐像素相同。
