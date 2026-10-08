@@ -246,6 +246,9 @@ No dist bundle patching is used in the active workflow.
       `zh-MO` → `zh-HK`，`zh-Hans[-*]` → `zh-CN`；其它标签原样。覆盖 phrases / SSR / `ctx.locale` / 邮件语言。
     - 邮件模板回落：**新** override `core/src/libraries/connector.ts`（仅 `getI18nEmailTemplate`）：`zh-TW` / `zh-HK` 无模板时依次试
       另一繁体区域、`zh-CN`，再回租户 fallback（`en`）。DB 只有 `en` + `zh-CN` 模板，否则 `zh-Hant` 用户会从简体邮件退成英文。
+    - 繁体邮件模板（数据，非代码）：`sql/20261008_email_templates_zh_tw.sql`（9 个 `zh-TW` 模板，租户 `admin`，幂等；
+      回滚 `.down.sql`）。不建 `zh-HK` 套：上面的回落让 `zh-HK` → `zh-TW`。模板查询走进程内 well-known 缓存，执行后需重启 Logto。
+      租户重建 / 换库后需重新执行（同 `runtime-tenant-config.md` 的性质）。
     - 单测 `core/src/utils/nicematrix-chinese-language.test.ts`、`core/src/libraries/connector.nicematrix-email-i18n.test.ts`；
       `logto-custom/tests/test-connector-carrier.mjs` 断言 `zh-TW` / `zh-HK`。
     - 升级时：5 个 `constant.ts` 重新复制上游、只重加两行名称；若上游已补 `zh-TW` / `zh-HK` 则删除对应 override。

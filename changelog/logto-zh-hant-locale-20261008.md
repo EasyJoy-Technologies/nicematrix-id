@@ -21,6 +21,9 @@
 | `core/src/utils/i18n.ts` | **新** override | `getExperienceLanguage` 的 `lng`（ui_locales / `?lng=`）同样归一 → phrases、SSR、邮件语言一致 |
 | `core/src/libraries/connector.ts` | **新** override | `getI18nEmailTemplate`：`zh-TW` / `zh-HK` 无模板 → 另一繁体区域 → `zh-CN` → 租户 fallback |
 
+繁体邮件模板（Xianglin 2026-10-08 11:52 追加）：`sql/20261008_email_templates_zh_tw.sql` 新增 9 个 `zh-TW` 模板（与 zh-CN 逐条对应，
+措辞沿用 Logto zh-TW 文案：帳戶 / 兩步驗證 / 登入）；`zh-HK` 经回落使用同一套。结果：所有繁体读者收繁体邮件。
+
 邮件回落的原因：DB 邮件模板只有 `en` + `zh-CN`（staging / prod-1 已核）。不加回落时，原先被误判为 `zh-CN` 的 `zh-Hant` 用户会从
 简体邮件退成英文邮件。加回落后：`zh-Hant*` 用户仍收简体（不变），原本收英文的 `zh-TW` / `zh-HK` 用户改收简体。
 
@@ -50,4 +53,6 @@
   zh-TW，`zh-Hant-HK` / `zh-Hant-MO` / `zh-MO` → zh-HK，`zh-Hans-CN` / `zh` → zh-CN，`en` / `ja` / `zh-TW` / `zh-HK` / `zh-CN` 不变，
   `en;q=0.5, zh-Hant-TW` → zh-TW；`?lng=zh-Hant` → zh-TW。`sign-in-exp`：微信 / 支付寶 / QQ / 本機號碼 均含 `zh-TW` + `zh-HK`。
   未做：登录后的 Account Center 真浏览器截图（名称取值走同一 `connector.name[i18n.language]`，`i18n.language` = 上述 Content-Language）。
-- prod-1：待 Xianglin 确认。
+- staging 邮件模板（2026-10-08）：执行 SQL → 9 行；重复执行 0 行；`.down.sql` 删 9 行（总数回 18）后再执行恢复 9 行；重启 Logto healthy、0 错误。
+  未做：真实发信（staging 无测试收件箱）；模板选择逻辑由 `connector.nicematrix-email-i18n.test.ts` 覆盖。
+- prod-1：Xianglin 2026-10-08 11:52 确认（与邮件模板一起）。
