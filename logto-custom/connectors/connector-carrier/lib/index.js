@@ -38,7 +38,7 @@ export const defaultMetadata = {
   id: 'nicematrix-carrier',
   target: 'carrier',
   platform: ConnectorPlatform.Universal,
-  name: { en: 'This phone number', 'zh-CN': '本机号码', 'zh-TW': '本機號碼' },
+  name: { en: 'This phone number', 'zh-CN': '本机号码', 'zh-TW': '本機號碼', 'zh-HK': '本機號碼' },
   logo: './logo.svg',
   logoDark: './logo.svg',
   description: {

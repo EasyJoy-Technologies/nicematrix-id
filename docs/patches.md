@@ -234,3 +234,20 @@ No dist bundle patching is used in the active workflow.
       `logs` 表存明文密码（prod-1 2026-02 起累计 406 行）。改在唯一的脱敏入口（`koa-audit-log` 写入前），任何同形载荷都覆盖。
     - 单测 `core/src/utils/sensitive-data.password-value.test.ts`；上游 `sensitive-data.test.ts`、`koa-audit-log.test.ts` 不变且通过。
     - 升级时：重新复制上游 `sensitive-data.ts`，只重加 `isPasswordTypedValue` 与一处 `||`；若上游已修复同类问题则删除本 override。
+
+16. 繁体中文：连接器名称 + `zh-Hant*` 语言匹配（2026-10-08，决策：Xianglin；changelog `changelog/logto-zh-hant-locale-20261008.md`）：
+    - 连接器名称：**新** override `connectors/connector-{wechat-native,wechat-web,alipay-native,alipay-web,qq}/src/constant.ts`，
+      `defaultMetadata.name` 补 `zh-TW` / `zh-HK`（微信 / 支付寶 / QQ）；ours `logto-custom/connectors/connector-carrier` 补 `zh-HK`。
+      原因：Account Center（`getLocalizedConnectorName`）与登录页（`SocialLinkButton`）按 UI 语言**精确**取名，缺键回落 `en` →
+      繁体下显示 “WeChat”。DB `connectors.metadata` 对这些连接器为 `{}`（staging / prod-1 已核），不覆盖代码值。
+    - 语言匹配：ours `core/src/utils/nicematrix-chinese-language.ts`；**新** override `core/src/i18n/detect-language.ts`（Accept-Language +
+      `?locale=`）与 `core/src/utils/i18n.ts`（`getExperienceLanguage` 的 `lng` / ui_locales）。上游 language-kit 不认 script 子标签，
+      `zh-Hant` / `zh-Hant-TW` / `zh-Hant-HK` 只能 base 匹配到简体 `zh-CN`。映射：`zh-Hant[-*]` → `zh-TW`（HK / MO → `zh-HK`），
+      `zh-MO` → `zh-HK`，`zh-Hans[-*]` → `zh-CN`；其它标签原样。覆盖 phrases / SSR / `ctx.locale` / 邮件语言。
+    - 邮件模板回落：**新** override `core/src/libraries/connector.ts`（仅 `getI18nEmailTemplate`）：`zh-TW` / `zh-HK` 无模板时依次试
+      另一繁体区域、`zh-CN`，再回租户 fallback（`en`）。DB 只有 `en` + `zh-CN` 模板，否则 `zh-Hant` 用户会从简体邮件退成英文。
+    - 单测 `core/src/utils/nicematrix-chinese-language.test.ts`、`core/src/libraries/connector.nicematrix-email-i18n.test.ts`；
+      `logto-custom/tests/test-connector-carrier.mjs` 断言 `zh-TW` / `zh-HK`。
+    - 升级时：5 个 `constant.ts` 重新复制上游、只重加两行名称；若上游已补 `zh-TW` / `zh-HK` 则删除对应 override。
+      `detect-language.ts` / `i18n.ts` / `connector.ts` 只重加标 `[NiceMatrix override]` 的 import 与一处调用；若上游 language-kit
+      已支持 script 子标签匹配则删除语言匹配三件。

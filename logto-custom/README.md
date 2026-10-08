@@ -14,6 +14,18 @@ Do not patch built dist bundles. Customize at source level only.
 
 ## Current overrides
 
+### Traditional Chinese: connector names + `zh-Hant*` language matching (2026-10-08)
+
+Changelog: `changelog/logto-zh-hant-locale-20261008.md` · inventory: `docs/patches.md` #16.
+
+| File | Kind | Change |
+|---|---|---|
+| `connectors/connector-{wechat-native,wechat-web,alipay-native,alipay-web,qq}/src/constant.ts` | **new overrides** | connector `name` gains `zh-TW` / `zh-HK` (微信 / 支付寶 / QQ); Traditional UIs no longer fall back to English |
+| `logto-custom/connectors/connector-carrier/lib/index.js` | ours (extended) | `name` gains `zh-HK` |
+| `core/src/utils/nicematrix-chinese-language.ts` | **new (ours)** | `zh-Hant[-*]` → `zh-TW` / `zh-HK`, `zh-Hans[-*]` → `zh-CN`; Chinese email-template fallbacks |
+| `core/src/i18n/detect-language.ts`, `core/src/utils/i18n.ts` | **new overrides** | detected tags and `ui_locales` / `?lng=` are normalized before Logto's own matching |
+| `core/src/libraries/connector.ts` | **new override** | `getI18nEmailTemplate`: zh-TW / zh-HK → other Traditional region → zh-CN → tenant fallback |
+
 ### Carrier one-tap review fixes, batch B (2026-10-03)
 
 Changelog: `changelog/logto-carrier-review-fixes-20261003.md` · inventory: `docs/patches.md` #12.

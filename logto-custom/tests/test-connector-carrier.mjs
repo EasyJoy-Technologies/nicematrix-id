@@ -44,7 +44,10 @@ await test('metadata: social carrier target, no config fields', () => {
   assert.equal(defaultMetadata.target, 'carrier');
   assert.equal(defaultMetadata.id, 'nicematrix-carrier');
   assert.deepEqual(defaultMetadata.formItems, []);
-  assert.ok(defaultMetadata.name.en && defaultMetadata.name['zh-CN'] && defaultMetadata.name['zh-TW']);
+  assert.ok(defaultMetadata.name.en && defaultMetadata.name['zh-CN']);
+  // Traditional Chinese UIs resolve to zh-TW or zh-HK; a missing key falls back to English.
+  assert.equal(defaultMetadata.name['zh-TW'], '本機號碼');
+  assert.equal(defaultMetadata.name['zh-HK'], '本機號碼');
 });
 
 await test('authorization: fixed region allowlist, launch context forwarded, session stored', async () => {
