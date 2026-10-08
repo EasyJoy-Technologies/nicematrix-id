@@ -43,4 +43,11 @@
 - staging / prod：见下方“部署”。
 
 ## 部署
-- 待执行（staging 先行；prod-1 需 Xianglin 确认）。
+- staging `id-staging`（2026-10-08）：镜像 `nicematrix-logto:release-2bfdcd8e4062c0e61fcb5ee0ad63b794765d0a1a-20261008-104139`（rollback `nicematrix-logto:rollback-staging-20261008-165354`）。
+  构建后镜像核对：`requestedResources` 7 / `hookMatchesRegion` 2 / `by-identity` 2 / `verification-records` 4 / `mfaIssuerName` 5 /
+  `assertFirstPartyClient` 34、connectors 50，与旧 `:latest` 一致；5 个连接器 lib 含 `zh-TW` / `zh-HK`。
+  部署后：discovery 200、`/api/status` 204、JWKS 200、日志 0 错误。`/api/.well-known/phrases` Content-Language：`zh-Hant` / `zh-Hant-TW` →
+  zh-TW，`zh-Hant-HK` / `zh-Hant-MO` / `zh-MO` → zh-HK，`zh-Hans-CN` / `zh` → zh-CN，`en` / `ja` / `zh-TW` / `zh-HK` / `zh-CN` 不变，
+  `en;q=0.5, zh-Hant-TW` → zh-TW；`?lng=zh-Hant` → zh-TW。`sign-in-exp`：微信 / 支付寶 / QQ / 本機號碼 均含 `zh-TW` + `zh-HK`。
+  未做：登录后的 Account Center 真浏览器截图（名称取值走同一 `connector.name[i18n.language]`，`i18n.language` = 上述 Content-Language）。
+- prod-1：待 Xianglin 确认。
