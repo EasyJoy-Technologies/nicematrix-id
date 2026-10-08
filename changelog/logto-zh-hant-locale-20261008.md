@@ -55,4 +55,12 @@
   未做：登录后的 Account Center 真浏览器截图（名称取值走同一 `connector.name[i18n.language]`，`i18n.language` = 上述 Content-Language）。
 - staging 邮件模板（2026-10-08）：执行 SQL → 9 行；重复执行 0 行；`.down.sql` 删 9 行（总数回 18）后再执行恢复 9 行；重启 Logto healthy、0 错误。
   未做：真实发信（staging 无测试收件箱）；模板选择逻辑由 `connector.nicematrix-email-i18n.test.ts` 覆盖。
-- prod-1：Xianglin 2026-10-08 11:52 确认（与邮件模板一起）。
+- prod-1（2026-10-08，Xianglin 11:52 确认，与邮件模板一起）：
+  - 前置：线上旧镜像 lineage 计数 7/2/2/4/5/34、connectors 50 与新镜像一致；`3bf170e` 为 HEAD 祖先；R2 备份回执 04:11Z（4 个 base）。
+  - 镜像传输：`docker save` 335 MB，两端 md5 `b6a9f355…` 一致；`RootFS.Layers` 两端 md5 `61776f60…` 一致。
+  - 邮件模板：先于重启执行 SQL → 9 行；prod 与 staging 的 zh-TW 内容 md5 一致（`265fae14…`）。
+  - 切换：`deploy.sh --target prod-1 --candidate nicematrix-logto:release-2bfdcd8e4062c0e61fcb5ee0ad63b794765d0a1a-20261008-104139 --apply` exit 0，rollback `nicematrix-logto:rollback-prod-1-20261008-175757`。
+  - 部署后：healthy、运行镜像 = 候选镜像、日志 0 错误；discovery 200 / status 204 / JWKS 200；Content-Language 与 staging 结果一致
+    （`zh-Hant` / `zh-Hant-TW` / `?lng=zh-Hant` → zh-TW，`zh-Hant-HK` / `zh-MO` → zh-HK，`zh-Hans-CN` / `zh` → zh-CN，en / ja 不变）；
+    `sign-in-exp`：微信 / QQ / 本機號碼 含 zh-TW + zh-HK（prod 未启用支付宝登录，镜像内已含）。`id.ej-mobile.cn` 302 正常（prod-3 同时生效）。
+  - 未做：真实繁体邮件收信、登录后 Account Center 真浏览器截图。
