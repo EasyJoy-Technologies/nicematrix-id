@@ -43,4 +43,11 @@
   - 回归 smoke（`docs/upgrade-1.43/smoke/`）：hosted-login 13/13、mfa-explicit-optin 35/35、mfa-neutral 10/10、ui-and-callback 21/21、
     token-exchange 11/11（`APP_ID=luckh1qjgg76zidyaipk6`；默认 `乐趣记事本` 在 staging 的 redirectUris 为空 → `invalid_redirect_uri`，
     属既有 staging 数据状态，与本次无关）。
-- prod-1：待填
+- prod-1（2026-10-09 15:36 MDT，Xianglin 15:34 确认；= intl + cn 两区）：
+  - 前置：R2 回执 04:14Z（4 个 base）；`deploy.sh` preflight OK。
+  - 传输：`docker save` 335 MB，两端 md5 `e905f325…` 一致；`RootFS.Layers` 两端 md5 `03a8ff6a…` 一致；镜像 `DEV_FEATURES_ENABLED=true`；
+    lineage 7/2/2/4/5/34、connectors 50 与在线镜像一致。
+  - 切换：`deploy.sh --target prod-1 --candidate <上面 release tag> --apply` exit 0，rollback `nicematrix-logto:rollback-prod-1-20261009-213634`。
+  - 验证：healthy、RestartCount 0；3 个 node 进程 `DEV_FEATURES_ENABLED=true`；M2M `GET /api/users/:id/trusted-devices` 200 `[]`
+    （修复前 nginx 记录为 404 `Not Found`），不存在用户 → 404 `entity.not_found`；`sign-in-exp.trustedDevice` = `{}`；discovery 200、
+    `/api/status` 204、JWKS 200、`/console/` 200；切换后 `server_error` 0、无 uncaught，nginx 切换后无 5xx。
