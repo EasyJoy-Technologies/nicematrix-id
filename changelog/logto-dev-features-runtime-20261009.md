@@ -34,5 +34,13 @@
 升级 Logto 时，新的上游 dev 功能会同时在前后端出现，升级评审需列出新增 `isDevFeaturesEnabled` 分支。
 
 ## 部署
-- staging：待填
+- staging `id-staging`（2026-10-09）：镜像 `nicematrix-logto:release-d1b16f02ad53087aa62c335c045bb38e8ab18fce-20261009-151828`（rollback `nicematrix-logto:rollback-staging-20261009-212927`）。
+  - 构建：镜像 `Config.Env` 含 `DEV_FEATURES_ENABLED=true`；lineage 计数 7/2/2/4/5/34、connectors 50，与 staging 旧 `:latest`、prod-1 在线镜像一致；
+    prod-1 在线 release 提交 `2bfdcd8` 为 HEAD 祖先，与之相比代码差异仅 Dockerfile + 一处注释。
+  - 修复前基线（M2M）：`GET /api/users/:id/trusted-devices` → 404 `Not Found`；`sign-in-exp` 无 `trustedDevice`。
+  - 修复后：3 个 node 进程 `DEV_FEATURES_ENABLED=true`；同一请求 → 200 `[]`；不存在的用户 → 404 JSON `entity.not_found`（路由已注册）；
+    `sign-in-exp.trustedDevice` = `{}`（未启用）。discovery 200、`/api/status` 204、JWKS 200、`server_error` 0。
+  - 回归 smoke（`docs/upgrade-1.43/smoke/`）：hosted-login 13/13、mfa-explicit-optin 35/35、mfa-neutral 10/10、ui-and-callback 21/21、
+    token-exchange 11/11（`APP_ID=luckh1qjgg76zidyaipk6`；默认 `乐趣记事本` 在 staging 的 redirectUris 为空 → `invalid_redirect_uri`，
+    属既有 staging 数据状态，与本次无关）。
 - prod-1：待填
