@@ -230,9 +230,13 @@ docker compose --env-file /etc/nicematrix/id.env up -d --build
 
 Build time ≈ 10–15 min. Required:
 
-- `dev_features_enabled=true` build arg (set in both `Dockerfile` default
-  and `docker-compose.yml`; without it Account Center security/social pages
-  are compile-time stripped)
+- `dev_features_enabled=true` build arg (global `ARG` in `Dockerfile` +
+  `docker-compose.yml`). It is baked into the console / account / experience
+  bundles at build time **and** exported as `DEV_FEATURES_ENABLED` in the app
+  stage so core (runtime) agrees. As of Logto 1.43 Account Center
+  security/social pages are GA and no longer depend on it; it gates dev-stage
+  features (trusted devices, IdP-initiated SAML, JWT error handling, …).
+  `scripts/check.sh` fails if the two sides can diverge.
 - `NODE_OPTIONS=--max-old-space-size=6144` in builder stage (production
   hosts with ≤8 GB RAM OOM during `packages/console` vite build otherwise)
 

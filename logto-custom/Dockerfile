@@ -1,3 +1,11 @@
+# Dev-features flag: ONE value for both stages. The builder bakes it into the
+# console / account / experience bundles (Vite, compile time); the app stage
+# exposes it to core at runtime (EnvSet.values.isDevFeaturesEnabled). Upstream
+# only sets it in the builder, which left core with dev features OFF while the
+# console showed dev UIs → e.g. user details `GET /api/users/:id/trusted-devices`
+# 404 "Not Found". Both sides must always agree. NiceMatrix runs with it ON.
+ARG dev_features_enabled=true
+
 ###### [STAGE] Build (source-based) ######
 FROM node:22-alpine as builder
 WORKDIR /etc/logto
@@ -20,9 +28,8 @@ RUN if [ -d /tmp/overrides ]; then rsync -a /tmp/overrides/ /etc/logto/; fi
 #    upstream's frozen pnpm lockfile stays untouched.
 COPY logto-custom/connectors/ /tmp/nmx-connectors/
 
-# Build args aligned with upstream Dockerfile behavior
-# Default to "true" — NiceMatrix always needs dev features (Account Center, social linking, etc.)
-ARG dev_features_enabled=true
+# Frontend side of the dev-features flag (value from the global ARG above).
+ARG dev_features_enabled
 ENV DEV_FEATURES_ENABLED=${dev_features_enabled}
 
 ARG applicationinsights_connection_string
@@ -47,6 +54,9 @@ RUN rm -rf .scripts pnpm-*.yaml packages/cloud
 
 ###### [STAGE] Seal ######
 FROM node:22-alpine as app
+# Runtime side of the dev-features flag — must equal the builder's value.
+ARG dev_features_enabled
+ENV DEV_FEATURES_ENABLED=${dev_features_enabled}
 WORKDIR /etc/logto
 COPY --from=builder /etc/logto .
 RUN mkdir -p /etc/logto/packages/cli/alteration-scripts && chmod g+w /etc/logto/packages/cli/alteration-scripts

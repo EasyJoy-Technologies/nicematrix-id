@@ -254,3 +254,10 @@ No dist bundle patching is used in the active workflow.
     - 升级时：5 个 `constant.ts` 重新复制上游、只重加两行名称；若上游已补 `zh-TW` / `zh-HK` 则删除对应 override。
       `detect-language.ts` / `i18n.ts` / `connector.ts` 只重加标 `[NiceMatrix override]` 的 import 与一处调用；若上游 language-kit
       已支持 script 子标签匹配则删除语言匹配三件。
+
+17. 开发功能开关前后端统一（2026-10-09，决策：Xianglin；changelog `changelog/logto-dev-features-runtime-20261009.md`）：
+    - `logto-custom/Dockerfile`：`dev_features_enabled` 改为全局 `ARG`（默认 `true`），builder 与 app 两个 stage 都
+      `ENV DEV_FEATURES_ENABLED=${dev_features_enabled}`。上游只在 builder 设置 → 前端三件套编译期开、core 运行期关
+      → 控制台用户详情 `GET /api/users/:id/trusted-devices` 404 等不一致。
+    - `scripts/check.sh` 新增断言：唯一全局 ARG、每个 stage 都导出 ENV、compose 不得另设运行时 `DEV_FEATURES_ENABLED`。
+    - 升级时：若上游 Dockerfile 结构变化，保持“一个值、两侧一致”；`check.sh` 会兜底报错。

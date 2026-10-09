@@ -16,3 +16,16 @@ for f in sql/*.sql; do
   done
 done
 [ "$missing" = 0 ] && echo "OK" || { echo "FAIL: Logto will not start with a public table lacking RLS"; exit 1; }
+
+echo "[nicematrix-id] dev-features flag: frontend bundles (builder) and core runtime (app) share one value"
+df=logto-custom/Dockerfile
+stages=$(grep -cE '^FROM ' "$df")
+envs=$(grep -cE '^ENV DEV_FEATURES_ENABLED=\$\{dev_features_enabled\}$' "$df")
+global_arg=$(awk '/^FROM /{exit} /^ARG dev_features_enabled=/{n++} END{print n+0}' "$df")
+if [ "$global_arg" != 1 ] || [ "$stages" != "$envs" ]; then
+  echo "FAIL: $df needs one global 'ARG dev_features_enabled=...' and 'ENV DEV_FEATURES_ENABLED=\${dev_features_enabled}' in every stage (stages=$stages env=$envs global_arg=$global_arg)"; exit 1
+fi
+if grep -qE '^\s+DEV_FEATURES_ENABLED:' deploy/docker-compose.yml; then
+  echo "FAIL: deploy/docker-compose.yml must not set runtime DEV_FEATURES_ENABLED (it would diverge from the baked bundles; use the build arg)"; exit 1
+fi
+echo "OK"
